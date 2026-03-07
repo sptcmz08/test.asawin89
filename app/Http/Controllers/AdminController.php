@@ -413,8 +413,114 @@ class AdminController extends Controller
     }
 
     /**
-     * Withdrawals Management
+     * Cancel a bet slip — void all bets and refund credit
      */
+    public function cancelBetSlip($slipId)
+    {
+        try {
+            return DB::transaction(function () use ($slipId) {
+                $slip = BetSlip::with('bets')->lockForUpdate()->findOrFail($slipId);
+
+                // ป้องกันยกเลิกซ้ำ
+                if ($slip->status === 'cancelled') {
+                    return response()->json(['success' => false, 'message' => 'โพยนี้ถูกยกเลิกไปแล้ว'], 400);
+                }
+
+                $user = User::where('id', $slip->user_id)->lockForUpdate()->first();
+                if (!$user) {
+                    return response()->json(['success' => false, 'message' => 'ไม่พบผู้ใช้'], 400);
+                }
+
+                $refundAmount = 0;
+                $deductWinAmount = 0;
+                $creditType = $slip->credit_type ?? 'real';
+
+                foreach ($slip->bets as $bet) {
+                    // ถ้า bet จ่ายรางวัลไปแล้ว → หักคืน
+                    if (in_array($bet->status, ['won', 'paid']) && $bet->win_amount > 0) {
+                        $deductWinAmount += (float) $bet->win_amount;
+                    }
+
+                    // คืนยอดเดิมพัน (เฉพาะ bet ที่ยังไม่ถูก void)
+                    if ($bet->status !== 'voided') {
+                        $refundAmount += (float) $bet->amount;
+                    }
+
+                    // void bet
+                    $bet->status = 'voided';
+                    $bet->save();
+                }
+
+                // หักรางวัลที่จ่ายไปแล้ว
+                if ($deductWinAmount > 0) {
+                    $currentCredit = $user->credit;
+                    $actualDeduct = min($deductWinAmount, $currentCredit);
+                    if ($actualDeduct > 0) {
+                        $user->decrement('credit', $actualDeduct);
+                    }
+
+                    if ($actualDeduct > 0) {
+                        $user->refresh();
+                        Transaction::create([
+                            'user_id' => $user->id,
+                            'type' => 'adjustment',
+                            'amount' => -$actualDeduct,
+                            'balance_after' => $user->credit,
+                            'description' => "หักคืนรางวัล (ยกเลิกโพย #{$slip->id}) ฿" . number_format($actualDeduct, 2),
+                        ]);
+                    }
+                }
+
+                // คืนยอดเดิมพัน
+                if ($refundAmount > 0) {
+                    if ($creditType === 'bonus') {
+                        $user->increment('bonus_credit', $refundAmount);
+                        $user->refresh();
+                        Transaction::create([
+                            'user_id' => $user->id,
+                            'type' => 'refund',
+                            'amount' => $refundAmount,
+                            'balance_after' => $user->bonus_credit,
+                            'description' => "คืนโบนัสเครดิต (ยกเลิกโพย #{$slip->id}: {$slip->slip_name})",
+                        ]);
+                    } else {
+                        $user->increment('credit', $refundAmount);
+                        $user->refresh();
+                        Transaction::create([
+                            'user_id' => $user->id,
+                            'type' => 'refund',
+                            'amount' => $refundAmount,
+                            'balance_after' => $user->credit,
+                            'description' => "คืนเครดิต (ยกเลิกโพย #{$slip->id}: {$slip->slip_name})",
+                        ]);
+                    }
+                }
+
+                // อัปเดตสถานะโพย
+                $slip->status = 'cancelled';
+                $slip->save();
+
+                // Audit log
+                AdminLog::log(
+                    'cancel_slip',
+                    "ยกเลิกโพย #{$slip->id} ({$slip->slip_name}) ของ {$user->name} — คืน ฿" . number_format($refundAmount, 2)
+                    . ($deductWinAmount > 0 ? " หักรางวัล ฿" . number_format($deductWinAmount, 2) : ''),
+                    'BetSlip',
+                    $slip->id,
+                    ['status' => 'active'],
+                    ['status' => 'cancelled', 'refund' => $refundAmount, 'deduct_win' => $deductWinAmount]
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'refund' => $refundAmount,
+                    'deduct_win' => $deductWinAmount,
+                ]);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
     public function withdrawals()
     {
         $withdrawals = Withdrawal::with(['user', 'bankAccount'])

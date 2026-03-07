@@ -57,6 +57,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/bets', [AdminController::class, 'bets'])->name('admin.bets');
+    Route::post('/bets/{slip}/cancel', [AdminController::class, 'cancelBetSlip'])->name('admin.bets.cancel');
     Route::get('/withdrawals', [AdminController::class, 'withdrawals'])->name('admin.withdrawals');
     Route::get('/payments', [AdminController::class, 'payments'])->name('admin.payments');
     Route::get('/lucky-numbers', [AdminController::class, 'luckyNumbers'])->name('admin.lucky-numbers');

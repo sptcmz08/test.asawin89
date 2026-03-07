@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { AdminLayout } from './Dashboard';
-import { Search, Receipt, DollarSign, CreditCard, Eye, X, ChevronRight } from 'lucide-react';
+import { Search, Receipt, DollarSign, CreditCard, Eye, X, ChevronRight, Ban } from 'lucide-react';
 
 const STATUS_STYLES = {
     pending: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'รอผล' },
@@ -9,6 +9,8 @@ const STATUS_STYLES = {
     lost: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'ไม่ถูก' },
     paid: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'จ่ายแล้ว' },
     partial: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'บางส่วน' },
+    voided: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'ยกเลิก' },
+    cancelled: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'ยกเลิก' },
 };
 
 const BET_TYPE_NAMES = {
@@ -22,6 +24,28 @@ export default function AdminBets({ slips = [], overallSummary = {}, lotteryType
     const [selectedType, setSelectedType] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [detailSlip, setDetailSlip] = useState(null);
+    const [cancelling, setCancelling] = useState(false);
+
+    const handleCancelSlip = (slipId) => {
+        if (!confirm('⚠️ ยืนยันยกเลิกโพยนี้?\n\n- Bets ทั้งหมดจะถูก void\n- เครดิตจะถูกคืนให้ user\n- ถ้าจ่ายรางวัลไปแล้วจะหักคืน')) return;
+        setCancelling(true);
+        fetch(`/admin/bets/${slipId}/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ยกเลิกสำเร็จ\nคืนเครดิต: ฿${Math.floor(data.refund).toLocaleString()}` + (data.deduct_win > 0 ? `\nหักรางวัลคืน: ฿${Math.floor(data.deduct_win).toLocaleString()}` : ''));
+                    router.reload();
+                    setDetailSlip(null);
+                } else {
+                    alert('❌ ' + (data.message || 'เกิดข้อผิดพลาด'));
+                }
+            })
+            .catch(() => alert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ'))
+            .finally(() => setCancelling(false));
+    };
 
     const handleSearch = () => {
         router.get('/admin/bets', { from, to }, { preserveState: true, preserveScroll: true });
@@ -326,6 +350,27 @@ export default function AdminBets({ slips = [], overallSummary = {}, lotteryType
                                     </div>
                                 </div>
                             )}
+
+                            {/* Cancel Button */}
+                            {detailSlip.status !== 'cancelled' && (
+                                <div className="px-5 py-3 border-t border-[#1a3a5c] bg-[#081424] flex justify-end">
+                                    <button
+                                        onClick={() => handleCancelSlip(detailSlip.id)}
+                                        disabled={cancelling}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600/20 text-red-400 border border-red-500/30 rounded-xl text-sm font-bold hover:bg-red-600/40 hover:text-red-300 transition-all disabled:opacity-50"
+                                    >
+                                        <Ban size={16} />
+                                        {cancelling ? 'กำลังยกเลิก...' : 'ยกเลิกโพยนี้ (คืนเครดิต)'}
+                                    </button>
+                                </div>
+                            )}
+                            {detailSlip.status === 'cancelled' && (
+                                <div className="px-5 py-3 border-t border-[#1a3a5c] bg-[#081424] flex justify-center">
+                                    <span className="text-gray-500 text-sm flex items-center gap-2">
+                                        <Ban size={14} /> โพยนี้ถูกยกเลิกแล้ว
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -335,8 +380,10 @@ export default function AdminBets({ slips = [], overallSummary = {}, lotteryType
 }
 
 function getSlipStatus(slip) {
+    if (slip.status === 'cancelled') return 'cancelled';
     if (!slip.bets || slip.bets.length === 0) return slip.status || 'pending';
     const statuses = slip.bets.map(b => b.status);
+    if (statuses.every(s => s === 'voided')) return 'cancelled';
     if (statuses.every(s => s === 'pending')) return 'pending';
     if (statuses.every(s => s === 'lost')) return 'lost';
     // If any bet is paid → slip is paid (ถูกรางวัล + จ่ายแล้ว)
