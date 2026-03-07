@@ -1,0 +1,59 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Third Party Services
+    |--------------------------------------------------------------------------
+    |
+    | This file is for storing the credentials for third party services such
+    | as Mailgun, Postmark, AWS and more. This file provides the de facto
+    | location for this type of information, allowing packages to have
+    | a conventional file to locate the various service credentials.
+    |
+    */
+
+    'postmark' => [
+        'key' => env('POSTMARK_API_KEY'),
+    ],
+
+    'resend' => [
+        'key' => env('RESEND_API_KEY'),
+    ],
+
+    'ses' => [
+        'key' => env('AWS_ACCESS_KEY_ID'),
+        'secret' => env('AWS_SECRET_ACCESS_KEY'),
+        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    ],
+
+    'slack' => [
+        'notifications' => [
+            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
+            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
+        ],
+    ],
+
+    'promptpay' => [
+        'id' => env('PROMPTPAY_ID', '062-9248190'),
+    ],
+
+
+    'easyslip' => [
+        'api_key' => env('EASYSLIP_API_KEY'),
+        'api_url' => env('EASYSLIP_API_URL', 'https://developer.easyslip.com/api/v1/verify'),
+    ],
+
+    'bank_account' => [
+        'bank_name' => env('BANK_NAME', ''),
+        'account_number' => env('BANK_ACCOUNT_NUMBER', ''),
+        'account_name' => env('BANK_ACCOUNT_NAME', ''),
+    ],
+
+    'line' => [
+        'channel_access_token' => env('LINE_CHANNEL_ACCESS_TOKEN'),
+        'channel_secret' => env('LINE_CHANNEL_SECRET'),
+    ],
+
+];
