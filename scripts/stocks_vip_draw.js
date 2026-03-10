@@ -231,98 +231,147 @@ async function scrapeStocksVipFallback(page, foundSlugs) {
         await page.goto('https://stocks-vip.com/', { waitUntil: 'networkidle2', timeout: 60000 });
         await new Promise(r => setTimeout(r, 5000));
 
-        // Get full page text
-        const pageText = await page.evaluate(() => document.body.innerText);
+        // ✅ Use Puppeteer DOM evaluation to get structured per-section data
+        // Each stock section on stocks-vip.com has a link to its individual site URL
+        // We use those URLs as anchors to isolate each section's data
+        const sectionData = await page.evaluate(() => {
+            const sections = {};
 
-        if (DEBUG) {
-            console.error(`[StocksVIP] stocks-vip.com full text:\n${pageText.substring(0, 3000)}`);
-        }
+            // Find all links on the page — each stock section has a link to its own site
+            const allLinks = document.querySelectorAll('a[href]');
+            const stockUrls = {};
 
-        // Split page into sections by known URL markers / stock names
-        // Each section on stocks-vip.com is separated by the site URL of that stock
-        const sectionSplitters = [
-            { pattern: /nikkeivipstock\.com/i, stock: 'nikkei' },
-            { pattern: /vnindexvip\.com/i, stock: 'vietnam' },
-            { pattern: /shenzhenindex\.com/i, stock: 'china' },
-            { pattern: /hangseng/i, stock: 'hangseng' },
-            { pattern: /taiex|taiwan/i, stock: 'taiwan' },
-            { pattern: /ktopvipindex\.com|kospi|korea/i, stock: 'korea' },
-            { pattern: /lsxvip\.com|laos/i, stock: 'lao' },
-            { pattern: /straits\s*times|singapore/i, stock: 'singapore' },
-            { pattern: /bse\s*sensex|india/i, stock: 'india' },
-            { pattern: /egx|egypt/i, stock: 'egypt' },
-            { pattern: /ftse|uk.*vip/i, stock: 'uk' },
-            { pattern: /dax|germany|frankfurt/i, stock: 'germany' },
-            { pattern: /moex|russia|moscow/i, stock: 'russia' },
-            { pattern: /dowjones|dow\s*jones|djia/i, stock: 'dowjones' },
-        ];
+            for (const link of allLinks) {
+                const href = (link.href || '').toLowerCase();
+                const urlMap = {
+                    'nikkeivipstock': 'nikkei',
+                    'vnindexvip': 'vietnam',
+                    'shenzhenindex': 'china',
+                    'hangseng-vip': 'hangseng',
+                    'taiexvip': 'taiwan',
+                    'ktopvipindex': 'korea',
+                    'lsxvip': 'lao',
+                    'dowjones-vip': 'dowjones',
+                };
 
-        // Build a map of stock→section text by finding section boundaries
-        const lines = pageText.split('\n');
-        const stockSections = {};
-        let currentStock = null;
-
-        for (const line of lines) {
-            // Check if this line starts a new stock section
-            for (const sp of sectionSplitters) {
-                if (sp.pattern.test(line)) {
-                    currentStock = sp.stock;
-                    if (!stockSections[currentStock]) stockSections[currentStock] = '';
-                    break;
+                for (const [urlKey, stockName] of Object.entries(urlMap)) {
+                    if (href.includes(urlKey)) {
+                        stockUrls[stockName] = link;
+                        break;
+                    }
                 }
             }
-            if (currentStock) {
-                stockSections[currentStock] += line + '\n';
+
+            // For each found stock link, walk up to find the parent container section
+            // then extract the text ONLY from that container
+            for (const [stock, linkEl] of Object.entries(stockUrls)) {
+                // Walk up to find a significant parent container (usually 3-5 levels up)
+                let container = linkEl.parentElement;
+                for (let i = 0; i < 5 && container; i++) {
+                    // Stop when we find a container with substantial content
+                    if (container.children.length >= 2 && container.textContent.length > 100) {
+                        break;
+                    }
+                    container = container.parentElement;
+                }
+
+                if (container) {
+                    const text = container.innerText || '';
+                    // Only include text up to 2000 chars to avoid grabbing too much
+                    sections[stock] = text.substring(0, 2000);
+                }
+            }
+
+            // Fallback: also try to identify sections by heading text
+            const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6, .title, [class*="title"], [class*="header"]');
+            const headingKeywords = {
+                'straits': 'singapore', 'singapore': 'singapore',
+                'sensex': 'india', 'bse': 'india', 'india': 'india',
+                'egypt': 'egypt', 'egx': 'egypt',
+                'ftse': 'uk',
+                'dax': 'germany', 'frankfurt': 'germany',
+                'moex': 'russia', 'moscow': 'russia',
+                'taiwan': 'taiwan', 'taiex': 'taiwan',
+            };
+
+            for (const heading of headings) {
+                const hText = (heading.textContent || '').toLowerCase();
+                for (const [keyword, stock] of Object.entries(headingKeywords)) {
+                    if (hText.includes(keyword) && !sections[stock]) {
+                        // Walk up to find parent container
+                        let container = heading.parentElement;
+                        for (let i = 0; i < 4 && container; i++) {
+                            if (container.children.length >= 2 && container.textContent.length > 100) break;
+                            container = container.parentElement;
+                        }
+                        if (container) {
+                            sections[stock] = (container.innerText || '').substring(0, 2000);
+                        }
+                    }
+                }
+            }
+
+            return sections;
+        });
+
+        if (DEBUG) {
+            console.error(`[StocksVIP] DOM sections found: ${Object.keys(sectionData).join(', ')}`);
+            for (const [stock, text] of Object.entries(sectionData)) {
+                const preview = text.replace(/\n/g, ' ').substring(0, 120);
+                console.error(`[StocksVIP]   [${stock}] ${preview}...`);
             }
         }
 
-        if (DEBUG) {
-            console.error(`[StocksVIP] Found sections for: ${Object.keys(stockSections).join(', ')}`);
-        }
-
-        // Now parse each section for its results
+        // Map stock names to their slug/config
+        const stockToSlugMap = {};
         for (const [slug, config] of Object.entries(STOCKS_VIP_FALLBACK)) {
-            if (foundSlugs.has(slug)) continue;
+            for (const kw of config.keywords) {
+                stockToSlugMap[kw.toLowerCase()] = { slug, config };
+            }
+        }
 
-            // Find which stock section this slug belongs to by keyword match
-            let sectionText = null;
-            for (const [stockKey, text] of Object.entries(stockSections)) {
-                const hasKeyword = config.keywords.some(kw =>
-                    text.toLowerCase().includes(kw.toLowerCase()) || stockKey === kw
-                );
-                if (hasKeyword) {
-                    sectionText = text;
-                    break;
+        // Parse each section independently (no cross-contamination!)
+        for (const [stock, sectionText] of Object.entries(sectionData)) {
+            // Find which slug this stock section corresponds to
+            let targetSlug = null;
+            let targetConfig = null;
+
+            for (const [slug, config] of Object.entries(STOCKS_VIP_FALLBACK)) {
+                if (foundSlugs.has(slug)) continue;
+                const isMatch = config.keywords.some(kw => kw.toLowerCase() === stock) ||
+                    config.keywords.some(kw => sectionText.toLowerCase().includes(kw.toLowerCase()));
+                if (isMatch) {
+                    targetSlug = slug;
+                    targetConfig = config;
+                    break; // First match wins — each section maps to ONE stock only
                 }
             }
 
-            if (!sectionText) {
-                if (DEBUG) console.error(`[StocksVIP] ⚠️  No section found for ${slug}`);
-                continue;
-            }
+            if (!targetSlug || !targetConfig) continue;
+            if (foundSlugs.has(targetSlug)) continue;
 
             const sessions = parseSessionResults(sectionText);
-            const session = config.session;
+            const session = targetConfig.session;
 
-            // For "closed" session stocks, try "closed" first, then "close"
+            // For "closed" session stocks, try all variants
             const data = sessions[session] || sessions['closed'] || sessions['close'];
             if (!data) {
-                if (DEBUG) console.error(`[StocksVIP] ⚠️  ${slug}: no ${session} data in section`);
+                if (DEBUG) console.error(`[StocksVIP] ⚠️  ${targetSlug}: no ${session} data in isolated section`);
                 continue;
             }
 
             results.push({
-                slug,
-                lottery_name: config.name,
+                slug: targetSlug,
+                lottery_name: targetConfig.name,
                 first_prize: data.three_top,
                 three_top: data.three_top,
                 two_top: data.three_top.slice(-2),
                 two_bottom: data.two_bottom,
                 draw_date: today,
-                source: 'stocks-vip.com (fallback)',
+                source: 'stocks-vip.com',
             });
-            foundSlugs.add(slug);
-            console.error(`[StocksVIP] ✅ ${config.name}: ${data.three_top} / ${data.three_top.slice(-2)} / ${data.two_bottom} (from stocks-vip.com)`);
+            foundSlugs.add(targetSlug);
+            console.error(`[StocksVIP] ✅ ${targetConfig.name}: ${data.three_top} / ${data.three_top.slice(-2)} / ${data.two_bottom} (from stocks-vip.com)`);
         }
 
     } catch (error) {
