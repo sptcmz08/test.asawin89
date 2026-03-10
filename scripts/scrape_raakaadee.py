@@ -14,9 +14,9 @@ import argparse
 from datetime import datetime
 
 # ============ LOTTERY NAME → SLUG MAPPING ============
-# Map Thai lottery names from raakaadee.com → system slugs
+# เฉพาะหวยที่มีอยู่ในระบบ asawin89.com เท่านั้น
 LOTTERY_MAPPINGS = {
-    # === หุ้น VIP ===
+    # === หุ้น VIP (14 ตัว) ===
     'หุ้นนิเคอิเช้า VIP': 'nikkei-morning-vip',
     'หุ้นนิเคอิ เช้า VIP': 'nikkei-morning-vip',
     'นิเคอิเช้า VIP': 'nikkei-morning-vip',
@@ -55,22 +55,16 @@ LOTTERY_MAPPINGS = {
     # === หุ้นปกติ (non-VIP) ===
     'หุ้นนิเคอิเช้า': 'nikkei-morning',
     'หุ้นนิเคอิ เช้า': 'nikkei-morning',
-    'นิเคอิ - รอบเช้า': 'nikkei-morning',
     'หุ้นนิเคอิบ่าย': 'nikkei-afternoon',
     'หุ้นนิเคอิ บ่าย': 'nikkei-afternoon',
-    'นิเคอิ - รอบบ่าย': 'nikkei-afternoon',
     'หุ้นจีนเช้า': 'china-morning',
     'หุ้นจีน เช้า': 'china-morning',
-    'หุ้นจีน - รอบเช้า': 'china-morning',
     'หุ้นจีนบ่าย': 'china-afternoon',
     'หุ้นจีน บ่าย': 'china-afternoon',
-    'หุ้นจีน - รอบบ่าย': 'china-afternoon',
     'หุ้นฮั่งเส็งเช้า': 'hangseng-morning',
     'หุ้นฮั่งเส็ง เช้า': 'hangseng-morning',
-    'หุ้นฮั่งเส็ง - รอบเช้า': 'hangseng-morning',
     'หุ้นฮั่งเส็งบ่าย': 'hangseng-afternoon',
     'หุ้นฮั่งเส็ง บ่าย': 'hangseng-afternoon',
-    'หุ้นฮั่งเส็ง - รอบบ่าย': 'hangseng-afternoon',
     'หุ้นไต้หวัน': 'taiwan',
     'หุ้นเกาหลี': 'korea',
     'หุ้นสิงคโปร์': 'singapore',
@@ -81,6 +75,8 @@ LOTTERY_MAPPINGS = {
     'หุ้นรัสเซีย': 'russia',
     'หุ้นดาวโจนส์': 'dowjones',
     'หุ้นไทย': 'thai-stock',
+    'หุ้นไทยเย็น': 'thai-stock',
+    'หุ้นไทยเช้า': 'thai-stock-morning',
 
     # === หวยฮานอย ===
     'หวยฮานอย': 'hanoi',
@@ -90,25 +86,22 @@ LOTTERY_MAPPINGS = {
     'ฮานอยพิเศษ': 'hanoi-special',
     'หวยฮานอยเฉพาะกิจ': 'hanoi-adhoc',
     'ฮานอยเฉพาะกิจ': 'hanoi-adhoc',
+    'หวยฮานอยกาชาด': 'hanoi-redcross',
+    'ฮานอยกาชาด': 'hanoi-redcross',
 
     # === หวยลาว ===
     'หวยลาว': 'lao',
     'หวยลาวปกติ': 'lao',
-    'หวยลาวพัฒนา': 'lao-pattana',
-    'ลาวพัฒนา': 'lao-pattana',
-    'หวยลาวสตาร์': 'lao-star',
-    'ลาวสตาร์': 'lao-star',
     'หวยลาว VIP': 'lao-vip',
     'ลาว VIP': 'lao-vip',
+    'หวยลาวสตาร์': 'lao-star',
+    'ลาวสตาร์': 'lao-star',
     'หวยลาวสามัคคี': 'lao-samakki',
     'ลาวสามัคคี': 'lao-samakki',
-    'หวยลาวเวียงจันทน์': 'lao-viengchan',
-    'หวยลาวประตูชัย': 'lao-pratuchai',
-    'ลาวประตูชัย': 'lao-pratuchai',
 
-    # === หวยอื่นๆ ===
-    'หวยมาเลย์': 'malay',
+    # === อื่นๆ ===
     'หวยรัฐบาล': 'thai',
+    'หวยมาเลย์': 'malay',
 }
 
 # Fuzzy matching: normalize text for comparison
