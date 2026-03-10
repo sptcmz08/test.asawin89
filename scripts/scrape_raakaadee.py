@@ -134,10 +134,9 @@ def parse_page_results(lines, found_slugs, today, debug=False):
                 print(f'[Raakaadee]   ⚠️ No match: "{short}"', file=sys.stderr)
             continue
 
-        # Look ahead for results
+        # Look ahead for "3 ตัวบน" and "2 ตัวล่าง"
         three_top = None
         two_bottom = None
-        full_number = None  # 5-digit "หวยออก" for set4
 
         for j in range(i+1, min(i+10, len(lines))):
             next_line = lines[j].strip()
@@ -148,11 +147,6 @@ def parse_page_results(lines, found_slugs, today, debug=False):
                     print(f'[Raakaadee]   ⏭️ {matched_name}: งดออกผล → {slug}', file=sys.stderr)
                 break  # No results today
 
-            # "หวยออก XXXXX" (5-digit full number for set4)
-            full_m = re.search(r'หวยออก\s+(\d{5,6})', next_line)
-            if full_m:
-                full_number = full_m.group(1)
-
             top_m = re.match(r'3\s*ตัวบน\s+(\d{3})', next_line)
             if top_m:
                 three_top = top_m.group(1)
@@ -162,22 +156,18 @@ def parse_page_results(lines, found_slugs, today, debug=False):
                 two_bottom = bottom_m.group(1)
 
         if three_top:
-            result_entry = {
+            results.append({
                 'slug': slug,
                 'lottery_name': matched_name,
-                'first_prize': full_number or three_top,
+                'first_prize': three_top,
                 'three_top': three_top,
                 'two_top': three_top[-2:],
                 'two_bottom': two_bottom or '',
                 'draw_date': today,
                 'source': 'raakaadee.com',
-            }
-            if full_number:
-                result_entry['full_number'] = full_number
-            results.append(result_entry)
+            })
             found_slugs.add(slug)
-            fn_info = f' (หวยออก: {full_number})' if full_number else ''
-            print(f'[Raakaadee]   ✅ {matched_name}: {three_top} / {three_top[-2:]} / {two_bottom or "?"} → {slug}{fn_info}', file=sys.stderr)
+            print(f'[Raakaadee]   ✅ {matched_name}: {three_top} / {three_top[-2:]} / {two_bottom or "?"} → {slug}', file=sys.stderr)
         elif debug:
             print(f'[Raakaadee]   ⚠️ {matched_name}: ไม่พบ 3 ตัวบน → {slug}', file=sys.stderr)
 
