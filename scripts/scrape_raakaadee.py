@@ -18,6 +18,7 @@ from datetime import datetime
 # แต่ละหน้ามีผลหวยเฉพาะหมวดนั้น ดึงแม่นกว่าหน้าหลัก
 CATEGORY_URLS = [
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้น-VIP/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยฮานอยปกติ/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยฮานอย/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาว/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นจีน/',
@@ -86,7 +87,6 @@ LOTTERY_MAPPINGS = {
     # === หวยฮานอย ===
     'ฮานอยปกติ': 'hanoi',
     'ฮานอย ออก': 'hanoi',
-    'ฮานอย VISA': 'hanoi',
     'ฮานอย VIP': 'hanoi-vip',
     'ฮานอยVIP': 'hanoi-vip',
     'ฮานอยพิเศษ': 'hanoi-special',
