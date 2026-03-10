@@ -34,6 +34,7 @@ CATEGORY_URLS = [
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นดาวโจนส์/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาวสามัคคี/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาว-VIP/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยมาเลย์/',
     'https://www.raakaadee.com/',  # หน้าหลัก — fallback
 ]
 
