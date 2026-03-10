@@ -32,6 +32,8 @@ CATEGORY_URLS = [
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นเยอรมัน/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นรัสเซีย/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นดาวโจนส์/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาวสามัคคี/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาว-VIP/',
     'https://www.raakaadee.com/',  # หน้าหลัก — fallback
 ]
 
@@ -54,11 +56,9 @@ LOTTERY_MAPPINGS = {
     'ไต้หวัน VIP': 'taiwan-vip',
     'ไต้หวันVIP': 'taiwan-vip',
     'สิงคโปร์ VIP': 'singapore-vip',
-    'อินเดีย VIP': 'india-vip',
-    'อียิปต์ VIP': 'egypt-vip',
+    # egypt-vip, india-vip, russia-vip → ใช้ scraper เดิม
     'อังกฤษ VIP': 'uk-vip',
     'เยอรมัน VIP': 'germany-vip',
-    'รัสเซีย VIP': 'russia-vip',
     'ดาวโจนส์ VIP': 'dowjones-vip',
     'เกาหลี VIP': 'korea',  # ระบบไม่มี korea-vip → ใช้ korea
 
