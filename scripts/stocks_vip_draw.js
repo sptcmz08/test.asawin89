@@ -39,13 +39,18 @@ const INDIVIDUAL_SITES = [
         slugs: { closed: 'dowjones-vip' },
         names: { closed: 'หุ้นดาวโจนส์ VIP' },
     },
+    {
+        url: 'https://indiastock-vip.com/',
+        stock: 'india',
+        slugs: { closed: 'india-vip' },
+        names: { closed: 'หุ้นอินเดีย VIP' },
+    },
 ];
 
 // Stocks that don't have individual sites → scrape from stocks-vip.com
 const STOCKS_VIP_FALLBACK = {
     'taiwan-vip': { name: 'หุ้นไต้หวัน VIP', keywords: ['taiwan', 'taiex', 'ไต้หวัน'], session: 'closed' },
     'singapore-vip': { name: 'หุ้นสิงคโปร์ VIP', keywords: ['singapore', 'straits', 'สิงคโปร์'], session: 'closed' },
-    'india-vip': { name: 'หุ้นอินเดีย VIP', keywords: ['india', 'sensex', 'bse', 'อินเดีย'], session: 'closed' },
     'egypt-vip': { name: 'หุ้นอียิปต์ VIP', keywords: ['egypt', 'egx', 'อียิปต์'], session: 'closed' },
     'uk-vip': { name: 'หุ้นอังกฤษ VIP', keywords: ['uk', 'ftse', 'london', 'อังกฤษ'], session: 'closed' },
     'germany-vip': { name: 'หุ้นเยอรมัน VIP', keywords: ['germany', 'dax', 'frankfurt', 'เยอรมัน'], session: 'closed' },
