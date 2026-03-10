@@ -21,6 +21,7 @@ CATEGORY_URLS = [
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยฮานอยปกติ/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยฮานอย/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาว/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาวพัฒนา/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นจีน/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นนิเคอิ/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นฮั่งเส็ง/',
@@ -94,7 +95,7 @@ LOTTERY_MAPPINGS = {
     'ฮานอยกาชาด': 'hanoi-redcross',
 
     # === หวยลาว ===
-    # ลาวร่ำรวย ไม่ได้ใช้บน asawin89.com
+    'ลาวพัฒนา': 'lao',
     'ลาว VIP': 'lao-vip',
     'ลาวVIP': 'lao-vip',
     'ลาวสตาร์': 'lao-star',
