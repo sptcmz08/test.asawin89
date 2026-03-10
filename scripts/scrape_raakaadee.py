@@ -94,8 +94,7 @@ LOTTERY_MAPPINGS = {
     'ฮานอยกาชาด': 'hanoi-redcross',
 
     # === หวยลาว ===
-    'ลาวร่ำรวย': 'lao',
-    'หวยลาว ': 'lao',
+    # ลาวร่ำรวย ไม่ได้ใช้บน asawin89.com
     'ลาว VIP': 'lao-vip',
     'ลาวVIP': 'lao-vip',
     'ลาวสตาร์': 'lao-star',
