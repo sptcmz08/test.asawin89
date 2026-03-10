@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Raakaadee.com Lottery Scraper
-ดึงผลหวยทุกประเภทจาก raakaadee.com ด้วย Camoufox (bypass Cloudflare)
+Raakaadee.com Lottery Scraper v2
+ดึงผลหวยจาก raakaadee.com ด้วย Camoufox (bypass Cloudflare)
 
-Usage: python3 scripts/scrape_raakaadee.py [--debug] [--slug=china-morning-vip] [--url=...]
+Usage: .venv/bin/python scripts/scrape_raakaadee.py [--debug] [--slug=china-morning-vip] [--url=...]
 Output: JSON to stdout
 """
 
@@ -15,28 +15,36 @@ from datetime import datetime
 
 # ============ LOTTERY NAME → SLUG MAPPING ============
 # เฉพาะหวยที่มีอยู่ในระบบ asawin89.com เท่านั้น
+# Key = keyword ที่อาจเจอในข้อความ raakaadee.com, Value = system slug
 LOTTERY_MAPPINGS = {
     # === หุ้น VIP (14 ตัว) ===
     'หุ้นนิเคอิเช้า VIP': 'nikkei-morning-vip',
     'หุ้นนิเคอิ เช้า VIP': 'nikkei-morning-vip',
     'นิเคอิเช้า VIP': 'nikkei-morning-vip',
+    'นิเคอิเช้าVIP': 'nikkei-morning-vip',
     'หุ้นนิเคอิบ่าย VIP': 'nikkei-afternoon-vip',
     'หุ้นนิเคอิ บ่าย VIP': 'nikkei-afternoon-vip',
     'นิเคอิบ่าย VIP': 'nikkei-afternoon-vip',
+    'นิเคอิบ่ายVIP': 'nikkei-afternoon-vip',
     'หุ้นจีนเช้า VIP': 'china-morning-vip',
     'หุ้นจีน เช้า VIP': 'china-morning-vip',
     'จีนเช้า VIP': 'china-morning-vip',
+    'จีนเช้าVIP': 'china-morning-vip',
     'หุ้นจีนบ่าย VIP': 'china-afternoon-vip',
     'หุ้นจีน บ่าย VIP': 'china-afternoon-vip',
     'จีนบ่าย VIP': 'china-afternoon-vip',
+    'จีนบ่ายVIP': 'china-afternoon-vip',
     'หุ้นฮั่งเส็งเช้า VIP': 'hangseng-morning-vip',
     'หุ้นฮั่งเส็ง เช้า VIP': 'hangseng-morning-vip',
     'ฮั่งเส็งเช้า VIP': 'hangseng-morning-vip',
+    'ฮั่งเส็งเช้าVIP': 'hangseng-morning-vip',
     'หุ้นฮั่งเส็งบ่าย VIP': 'hangseng-afternoon-vip',
     'หุ้นฮั่งเส็ง บ่าย VIP': 'hangseng-afternoon-vip',
     'ฮั่งเส็งบ่าย VIP': 'hangseng-afternoon-vip',
+    'ฮั่งเส็งบ่ายVIP': 'hangseng-afternoon-vip',
     'หุ้นไต้หวัน VIP': 'taiwan-vip',
     'ไต้หวัน VIP': 'taiwan-vip',
+    'ไต้หวันVIP': 'taiwan-vip',
     'หุ้นสิงคโปร์ VIP': 'singapore-vip',
     'สิงคโปร์ VIP': 'singapore-vip',
     'หุ้นอินเดีย VIP': 'india-vip',
@@ -82,6 +90,7 @@ LOTTERY_MAPPINGS = {
     'หวยฮานอย': 'hanoi',
     'หวยฮานอยปกติ': 'hanoi',
     'หวยฮานอย VIP': 'hanoi-vip',
+    'หวยฮานอยVIP': 'hanoi-vip',
     'หวยฮานอยพิเศษ': 'hanoi-special',
     'ฮานอยพิเศษ': 'hanoi-special',
     'หวยฮานอยเฉพาะกิจ': 'hanoi-adhoc',
@@ -101,119 +110,34 @@ LOTTERY_MAPPINGS = {
 
     # === อื่นๆ ===
     'หวยรัฐบาล': 'thai',
+    'สลากกินแบ่งรัฐบาล': 'thai',
     'หวยมาเลย์': 'malay',
 }
 
-# Fuzzy matching: normalize text for comparison
-def normalize_name(name):
-    """Normalize Thai lottery name for matching"""
-    name = name.strip()
-    # Remove extra spaces
-    name = re.sub(r'\s+', ' ', name)
-    # Remove common prefixes/suffixes that might differ
-    name = name.replace('หวยหุ้น', 'หุ้น')
-    return name
 
+def match_slug(text):
+    """Try to match text against known lottery names — longest match first"""
+    text = text.strip()
+    text_norm = re.sub(r'\s+', ' ', text)
 
-def match_slug(lottery_name):
-    """Try to match a lottery name to a system slug"""
-    name = normalize_name(lottery_name)
+    # Try exact match first
+    if text_norm in LOTTERY_MAPPINGS:
+        return LOTTERY_MAPPINGS[text_norm], text_norm
 
-    # Direct match
-    if name in LOTTERY_MAPPINGS:
-        return LOTTERY_MAPPINGS[name]
+    # Try longest substring match (to avoid "หุ้นจีนเช้า" matching before "หุ้นจีนเช้า VIP")
+    # Sort by key length descending so longer matches take priority
+    for key in sorted(LOTTERY_MAPPINGS.keys(), key=len, reverse=True):
+        key_norm = re.sub(r'\s+', '', key)
+        text_clean = re.sub(r'\s+', '', text_norm)
+        if key_norm in text_clean:
+            return LOTTERY_MAPPINGS[key], key
 
-    # Try without leading/trailing spaces
-    for key, slug in LOTTERY_MAPPINGS.items():
-        if normalize_name(key) == name:
-            return slug
-
-    # Fuzzy: check if the lottery name contains a known key
-    for key, slug in LOTTERY_MAPPINGS.items():
-        nkey = normalize_name(key)
-        if nkey in name or name in nkey:
-            return slug
-
-    return None
-
-
-def parse_results_from_page(page_text, debug=False):
-    """Parse lottery results from raakaadee.com page text"""
-    results = []
-    today = datetime.now().strftime('%Y-%m-%d')
-
-    # raakaadee.com shows each lottery as a row with:
-    # [flag] lottery_name HH:MM น.
-    # and the result numbers nearby
-    # The exact format depends on the page structure
-
-    lines = page_text.split('\n')
-
-    for i, line in enumerate(lines):
-        line = line.strip()
-        if not line:
-            continue
-
-        # Try to find lottery name + time pattern 
-        # e.g. "หุ้นจีนเช้า VIP 10:05 น." or "หุ้นนิเคอิเช้า VIP 10:00 น."
-        time_match = re.search(r'(.+?)\s+(\d{1,2}:\d{2})\s*น\.?', line)
-        if not time_match:
-            # Also try without "น."
-            time_match = re.search(r'(.+?)\s+(\d{1,2}:\d{2})\s*$', line)
-
-        if time_match:
-            lottery_name = time_match.group(1).strip()
-            draw_time = time_match.group(2)
-
-            # Clean up lottery name (remove flag emojis/icons)
-            lottery_name = re.sub(r'^[🇯🇵🇨🇳🇭🇰🇹🇼🇰🇷🇸🇬🇮🇳🇪🇬🇬🇧🇩🇪🇷🇺🇺🇸🇹🇭🇻🇳🇱🇦🇲🇾\s🏳️‍⚧️🏴󠁧󠁢󠁥󠁮󠁧󠁿]+', '', lottery_name)
-            lottery_name = lottery_name.strip()
-
-            slug = match_slug(lottery_name)
-            if not slug:
-                if debug:
-                    print(f'[Raakaadee] ⚠️  No slug match: "{lottery_name}" (time: {draw_time})', file=sys.stderr)
-                continue
-
-            # Look for result numbers in nearby lines (next 1-3 lines)
-            result_text = ' '.join(lines[i:i+4])
-
-            # Try to extract 3-digit top and 2-digit bottom
-            # Common patterns: "XXX" (3-digit) and "YY" (2-digit)
-            three_top = None
-            two_bottom = None
-
-            # Pattern: look for 3-digit and 2-digit numbers near the lottery name
-            nums = re.findall(r'\b(\d{2,3})\b', result_text)
-
-            # Filter: find first 3-digit and first 2-digit after the name
-            for n in nums:
-                if len(n) == 3 and not three_top:
-                    three_top = n
-                elif len(n) == 2 and three_top and not two_bottom:
-                    two_bottom = n
-
-            if three_top:
-                results.append({
-                    'slug': slug,
-                    'lottery_name': lottery_name,
-                    'first_prize': three_top,
-                    'three_top': three_top,
-                    'two_top': three_top[-2:],
-                    'two_bottom': two_bottom or '',
-                    'draw_date': today,
-                    'draw_time': draw_time,
-                    'source': 'raakaadee.com',
-                })
-                if debug:
-                    print(f'[Raakaadee] ✅ {lottery_name}: {three_top}/{two_bottom or "?"} (slug: {slug})', file=sys.stderr)
-
-    return results
+    return None, None
 
 
 def scrape_raakaadee(debug=False, target_slug=None, target_url=None):
-    """Main scraper function"""
-    print('[Raakaadee] Starting Camoufox scraper...', file=sys.stderr)
+    """Main scraper function using Camoufox"""
+    print('[Raakaadee] Starting Camoufox scraper v2...', file=sys.stderr)
 
     try:
         from camoufox.sync_api import Camoufox
@@ -221,54 +145,153 @@ def scrape_raakaadee(debug=False, target_slug=None, target_url=None):
         print('[Raakaadee] ERROR: camoufox not installed. Run: pip install camoufox[geoip] && camoufox fetch', file=sys.stderr)
         return {'success': False, 'error': 'camoufox not installed', 'results': []}
 
-    # Default URL: main results page
     url = target_url or 'https://www.raakaadee.com/'
+    today = datetime.now().strftime('%Y-%m-%d')
 
     try:
         with Camoufox(headless=True) as browser:
             page = browser.new_page()
             print(f'[Raakaadee] 🌐 Loading {url}...', file=sys.stderr)
 
-            # Navigate directly to the target URL
             page.goto(url, timeout=60000)
             page.wait_for_load_state('networkidle', timeout=30000)
 
             # Wait for Cloudflare challenge to complete
-            # Cloudflare shows "Checking your browser" — we need to wait for it to pass
-            max_cf_wait = 30  # seconds
-            cf_check_interval = 3  # seconds
+            max_cf_wait = 30
+            cf_interval = 3
             waited = 0
             while waited < max_cf_wait:
-                page_text = page.evaluate('() => document.body.innerText')
-                if 'checking your browser' in page_text.lower() or 'please wait' in page_text.lower():
+                check_text = page.evaluate('() => document.body.innerText')
+                if 'checking your browser' in check_text.lower() or 'please wait' in check_text.lower():
                     print(f'[Raakaadee] ⏳ Cloudflare challenge detected, waiting... ({waited}s/{max_cf_wait}s)', file=sys.stderr)
-                    page.wait_for_timeout(cf_check_interval * 1000)
-                    waited += cf_check_interval
+                    page.wait_for_timeout(cf_interval * 1000)
+                    waited += cf_interval
                 else:
                     print(f'[Raakaadee] ✅ Cloudflare challenge passed! ({waited}s)', file=sys.stderr)
                     break
             else:
-                print(f'[Raakaadee] ⚠️  Cloudflare challenge did not clear after {max_cf_wait}s', file=sys.stderr)
+                print(f'[Raakaadee] ⚠️ Cloudflare challenge did not clear after {max_cf_wait}s', file=sys.stderr)
+                return {'success': False, 'error': f'Cloudflare challenge timeout ({max_cf_wait}s)', 'results': []}
 
-            # Extra wait for JS rendering after Cloudflare passes
             page.wait_for_timeout(3000)
 
-            # Get page text
-            page_text = page.evaluate('() => document.body.innerText')
+            # ============ USE DOM TO EXTRACT STRUCTURED DATA ============
+            # Instead of parsing text, use Puppeteer-style DOM queries
+            # to find each lottery section and extract its numbers
+            sections = page.evaluate('''() => {
+                const results = [];
+                const body = document.body.innerText;
+                
+                // Get ALL text content as one big string
+                return body;
+            }''')
+
             page_url = page.url
 
             if debug:
                 print(f'[Raakaadee] URL: {page_url}', file=sys.stderr)
-                print(f'[Raakaadee] Page text preview:\n{page_text[:3000]}', file=sys.stderr)
+                # Show more of the page
+                print(f'[Raakaadee] Page length: {len(sections)} chars', file=sys.stderr)
+                print(f'[Raakaadee] Page text preview:\n{sections[:5000]}', file=sys.stderr)
 
-            # Parse results
-            results = parse_results_from_page(page_text, debug=debug)
+            # ============ PARSE RESULTS ============
+            results = []
+            found_slugs = set()
+
+            # Strategy: scan page text for known lottery names,
+            # then try to extract 3-digit (top) and 2-digit (bottom) numbers nearby
+
+            lines = sections.split('\n')
+
+            for i, line in enumerate(lines):
+                line_stripped = line.strip()
+                if not line_stripped or len(line_stripped) < 3:
+                    continue
+
+                # Try to match this line to a known lottery
+                slug, matched_name = match_slug(line_stripped)
+
+                if not slug:
+                    continue
+
+                # Avoid duplicates (first match wins for each slug)
+                if slug in found_slugs:
+                    continue
+
+                if debug:
+                    print(f'[Raakaadee] 🔍 Found: "{line_stripped}" → slug={slug}', file=sys.stderr)
+
+                # Look ahead in next 15 lines for result numbers
+                search_window = '\n'.join(lines[i:i+20])
+                three_top = None
+                two_bottom = None
+
+                # Pattern 1: "3 ตัวบน" followed by 3-digit number
+                top_match = re.search(r'(?:3\s*ตัวบน|สามตัวบน|เลข\s*3\s*ตัว|three.*top)\s*[:\s]*(\d{3})', search_window, re.IGNORECASE)
+                if top_match:
+                    three_top = top_match.group(1)
+
+                # Pattern 2: "2 ตัวล่าง" followed by 2-digit number
+                bottom_match = re.search(r'(?:2\s*ตัวล่าง|สองตัวล่าง|เลข\s*2\s*ตัว|two.*bottom)\s*[:\s]*(\d{2})', search_window, re.IGNORECASE)
+                if bottom_match:
+                    two_bottom = bottom_match.group(1)
+
+                # Pattern 3: For Thai government lottery: "รางวัลที่ 1" + 6-digit → take last 3
+                if not three_top and slug == 'thai':
+                    thai_match = re.search(r'รางวัลที่\s*1[^\d]*(\d{6})', search_window)
+                    if thai_match:
+                        three_top = thai_match.group(1)[-3:]  # Last 3 digits
+                    # Also look for "เลขท้าย 2 ตัว"
+                    thai_bottom = re.search(r'เลขท้าย\s*2\s*ตัว[^\d]*(\d{2})', search_window)
+                    if thai_bottom:
+                        two_bottom = thai_bottom.group(1)
+
+                # Pattern 4: Generic — look for standalone 3-digit number, then 2-digit
+                if not three_top:
+                    # Look in the search window for lines that are just 3 digits
+                    for j in range(i+1, min(i+15, len(lines))):
+                        candidate = lines[j].strip()
+                        if re.match(r'^\d{3}$', candidate):
+                            three_top = candidate
+                            break
+                        # Stop if we hit another lottery name
+                        other_slug, _ = match_slug(candidate)
+                        if other_slug and other_slug != slug:
+                            break
+
+                if three_top and not two_bottom:
+                    # Look for 2-digit bottom after we found the top
+                    for j in range(i+1, min(i+15, len(lines))):
+                        candidate = lines[j].strip()
+                        if re.match(r'^\d{2}$', candidate):
+                            two_bottom = candidate
+                            break
+                        if other_slug and other_slug != slug:
+                            break
+
+                if three_top:
+                    results.append({
+                        'slug': slug,
+                        'lottery_name': matched_name,
+                        'first_prize': three_top,
+                        'three_top': three_top,
+                        'two_top': three_top[-2:],
+                        'two_bottom': two_bottom or '',
+                        'draw_date': today,
+                        'source': 'raakaadee.com',
+                    })
+                    found_slugs.add(slug)
+                    print(f'[Raakaadee] ✅ {matched_name}: {three_top} / {three_top[-2:]} / {two_bottom or "?"} (slug: {slug})', file=sys.stderr)
+                else:
+                    if debug:
+                        print(f'[Raakaadee] ⚠️  {matched_name}: ไม่พบตัวเลขผล (slug: {slug})', file=sys.stderr)
 
             # Filter by slug if specified
             if target_slug:
                 results = [r for r in results if r['slug'] == target_slug]
 
-            print(f'[Raakaadee] 📊 Total results: {len(results)}', file=sys.stderr)
+            print(f'[Raakaadee] 📊 Total matched: {len(results)} / {len(LOTTERY_MAPPINGS)} mapped lotteries', file=sys.stderr)
+            print(f'[Raakaadee] 📋 Matched slugs: {", ".join(sorted(found_slugs))}', file=sys.stderr)
 
             return {
                 'success': True,
@@ -279,6 +302,8 @@ def scrape_raakaadee(debug=False, target_slug=None, target_url=None):
 
     except Exception as e:
         print(f'[Raakaadee] ❌ Error: {e}', file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         return {
             'success': False,
             'error': str(e),
