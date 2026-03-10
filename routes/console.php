@@ -288,29 +288,88 @@ Schedule::command('lottery:scrape-stock-vip --calculate')
     ->description('VIP Stock final catchup');
 
 // ================================
-// 🌐 Raakaadee.com Scraper — Fallback (Camoufox)
+// 🌐 Raakaadee.com Scraper — PRIMARY (Camoufox)
 // ================================
-// ดึง 36 หวยจาก raakaadee.com (bypass Cloudflare) 4 รอบ/วัน
-// ใช้เป็นตัวเสริม scraper เดิม — จับผลที่พลาดไป
-Schedule::command('lottery:scrape-raakaadee --calculate')
-    ->dailyAt('14:00')
-    ->timezone('Asia/Bangkok')
-    ->description('Raakaadee fallback — หุ้นเช้า+บ่าย');
+// ดึง 36 หวยจาก raakaadee.com — ใช้เป็นตัวหลัก
+// รันหลังเวลาออกแต่ละช่วง (~12 รอบ/วัน ≈ 36 นาที)
 
+// 09:40 — นิเคอิเช้า VIP (09:05), นิเคอิเช้า (09:30)
 Schedule::command('lottery:scrape-raakaadee --calculate')
-    ->dailyAt('18:30')
+    ->dailyAt('09:40')
     ->timezone('Asia/Bangkok')
-    ->description('Raakaadee fallback — ฮานอย/ลาว/สิงคโปร์');
+    ->description('Raakaadee: หุ้นเช้า รอบ 1');
 
+// 11:10 — จีนเช้า VIP/ปกติ (10:05-10:30), ฮั่งเส็งเช้า VIP/ปกติ (10:35-11:00)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('11:10')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: หุ้นเช้า รอบ 2');
+
+// 13:10 — ไต้หวัน VIP/ปกติ (11:35-12:35), เกาหลี (13:00)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('13:10')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: หุ้นเที่ยง');
+
+// 14:35 — นิเคอิบ่าย VIP (13:25), จีนบ่าย VIP/ปกติ (14:00-14:25)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('14:35')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: หุ้นบ่าย รอบ 1');
+
+// 16:00 — ฮั่งเส็งบ่าย VIP (15:25), ลาวสตาร์ (15:45)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('16:00')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: หุ้นบ่าย รอบ 2');
+
+// 17:10 — ฮานอยเฉพาะกิจ/กาชาด (16:30), สิงคโปร์ VIP (17:05)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('17:10')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: ฮานอยเฉพาะกิจ+สิงคโปร์');
+
+// 18:00 — อินเดีย (17:30), ฮานอยพิเศษ (17:30)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('18:00')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: อินเดีย+ฮานอยพิเศษ');
+
+// 19:00 — ฮานอยปกติ (18:30), มาเลย์ (18:30)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('19:00')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: ฮานอยปกติ+มาเลย์');
+
+// 20:30 — ฮานอย VIP (19:30), อียิปต์ (20:00), ลาวพัฒนา/สามัคคี (20:30)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('20:40')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: หวยค่ำ (ฮานอยVIP/อียิปต์/ลาว)');
+
+// 22:00 — ลาว VIP (21:30)
 Schedule::command('lottery:scrape-raakaadee --calculate')
     ->dailyAt('22:00')
     ->timezone('Asia/Bangkok')
-    ->description('Raakaadee fallback — หวยค่ำ (ลาว VIP/อียิปต์)');
+    ->description('Raakaadee: ลาว VIP');
 
+// 00:05 — รัสเซีย (22:50), อังกฤษ (23:50), เยอรมัน (23:50)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('00:05')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: หวยดึก (รัสเซีย/อังกฤษ/เยอรมัน)');
+
+// 01:00 — ดาวโจนส์ VIP (00:30)
 Schedule::command('lottery:scrape-raakaadee --calculate')
     ->dailyAt('01:00')
     ->timezone('Asia/Bangkok')
-    ->description('Raakaadee fallback — หวยดึก (รัสเซีย/อังกฤษ/ดาวโจนส์)');
+    ->description('Raakaadee: ดาวโจนส์ VIP');
+
+// 04:30 — ดาวโจนส์ (03:20)
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('04:30')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee: ดาวโจนส์');
 
 // ================================
 // Nightly Catchup (00:30)
