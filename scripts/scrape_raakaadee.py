@@ -20,12 +20,20 @@ CATEGORY_URLS = [
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้น-VIP/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยฮานอย/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หวยลาว/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นจีน/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นนิเคอิ/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นฮั่งเส็ง/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นไต้หวัน/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นเกาหลี/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นสิงคโปร์/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นอินเดีย/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นอียิปต์/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นอังกฤษ/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นเยอรมัน/',
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นรัสเซีย/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นดาวโจนส์/',
-    'https://www.raakaadee.com/',  # หน้าหลัก — fallback สำหรับหวยที่ไม่มีหน้าแยก
+    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นไทย/',
+    'https://www.raakaadee.com/',  # หน้าหลัก — fallback
 ]
 
 # ============ LOTTERY NAME → SLUG MAPPING ============
