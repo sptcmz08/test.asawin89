@@ -32,7 +32,6 @@ CATEGORY_URLS = [
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นเยอรมัน/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นรัสเซีย/',
     'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นดาวโจนส์/',
-    'https://www.raakaadee.com/ตรวจหวย-หุ้น/หุ้นไทย/',
     'https://www.raakaadee.com/',  # หน้าหลัก — fallback
 ]
 
@@ -81,14 +80,7 @@ LOTTERY_MAPPINGS = {
     'หุ้นเยอรมัน': 'germany',
     'หุ้นรัสเซีย': 'russia',
     'หุ้นดาวโจนส์': 'dowjones',
-    'หุ้นไทยช่อง9': 'thai-stock',
-    'หุ้นไทย ปิด': 'thai-stock',
-    'หุ้นไทยเย็น': 'thai-stock',
-    'หุ้นไทยบ่าย': 'thai-stock',
-    'หุ้นไทยช่อง9 ปิด': 'thai-stock',
-    'หุ้นไทยเช้า': 'thai-stock-morning',
-    'หุ้นไทย เปิด': 'thai-stock-morning',
-    'หุ้นไทยช่อง9 เปิด': 'thai-stock-morning',
+    # หุ้นไทยเช้า/เย็น → ใช้ scraper เดิม (ไม่ดึงจาก raakaadee)
 
     # === หวยฮานอย ===
     'ฮานอยปกติ': 'hanoi',
