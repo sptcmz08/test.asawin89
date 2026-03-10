@@ -83,7 +83,12 @@ LOTTERY_MAPPINGS = {
     'หุ้นดาวโจนส์': 'dowjones',
     'หุ้นไทยช่อง9': 'thai-stock',
     'หุ้นไทย ปิด': 'thai-stock',
+    'หุ้นไทยเย็น': 'thai-stock',
+    'หุ้นไทยบ่าย': 'thai-stock',
+    'หุ้นไทยช่อง9 ปิด': 'thai-stock',
     'หุ้นไทยเช้า': 'thai-stock-morning',
+    'หุ้นไทย เปิด': 'thai-stock-morning',
+    'หุ้นไทยช่อง9 เปิด': 'thai-stock-morning',
 
     # === หวยฮานอย ===
     'ฮานอยปกติ': 'hanoi',
