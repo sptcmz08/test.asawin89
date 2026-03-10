@@ -288,6 +288,31 @@ Schedule::command('lottery:scrape-stock-vip --calculate')
     ->description('VIP Stock final catchup');
 
 // ================================
+// 🌐 Raakaadee.com Scraper — Fallback (Camoufox)
+// ================================
+// ดึง 36 หวยจาก raakaadee.com (bypass Cloudflare) 4 รอบ/วัน
+// ใช้เป็นตัวเสริม scraper เดิม — จับผลที่พลาดไป
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('14:00')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee fallback — หุ้นเช้า+บ่าย');
+
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('18:30')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee fallback — ฮานอย/ลาว/สิงคโปร์');
+
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('22:00')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee fallback — หวยค่ำ (ลาว VIP/อียิปต์)');
+
+Schedule::command('lottery:scrape-raakaadee --calculate')
+    ->dailyAt('01:00')
+    ->timezone('Asia/Bangkok')
+    ->description('Raakaadee fallback — หวยดึก (รัสเซีย/อังกฤษ/ดาวโจนส์)');
+
+// ================================
 // Nightly Catchup (00:30)
 // ================================
 // รันสรุปทุกคืนเพื่อ catchup ผลที่พลาดไป
