@@ -1083,7 +1083,7 @@ export default function Bet({ lottery, specialNumbers = [], forbiddenNumbers = [
                                 />
                                 <button onClick={applyGlobalPrice} className="bg-[#d4a017] text-black px-4 py-2 rounded-lg hover:brightness-110 font-bold text-sm">นำไปใช้</button>
                             </div>
-                            <div className="grid grid-cols-6 gap-1.5">
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                                 {[5, 10, 20, 50, 100, 200].map(bg => (
                                     <button key={bg} onClick={() => { setGlobalPrice(bg); setSelectedBets(prev => prev.map(bet => ({ ...bet, amount: bg }))); }} className={`py-2 rounded-lg text-xs font-bold transition-all ${globalPrice === bg ? 'bg-[#d4a017] text-black' : 'bg-[#0f2340] border border-[#1a3a5c] text-gray-300 hover:bg-[#162d52] hover:text-[#d4a017]'}`}>
                                         {bg} ฿
