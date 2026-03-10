@@ -233,8 +233,25 @@ def scrape_raakaadee(debug=False, target_slug=None, target_url=None):
             page.goto(url, timeout=60000)
             page.wait_for_load_state('networkidle', timeout=30000)
 
-            # Wait for content to render
-            page.wait_for_timeout(5000)
+            # Wait for Cloudflare challenge to complete
+            # Cloudflare shows "Checking your browser" — we need to wait for it to pass
+            max_cf_wait = 30  # seconds
+            cf_check_interval = 3  # seconds
+            waited = 0
+            while waited < max_cf_wait:
+                page_text = page.evaluate('() => document.body.innerText')
+                if 'checking your browser' in page_text.lower() or 'please wait' in page_text.lower():
+                    print(f'[Raakaadee] ⏳ Cloudflare challenge detected, waiting... ({waited}s/{max_cf_wait}s)', file=sys.stderr)
+                    page.wait_for_timeout(cf_check_interval * 1000)
+                    waited += cf_check_interval
+                else:
+                    print(f'[Raakaadee] ✅ Cloudflare challenge passed! ({waited}s)', file=sys.stderr)
+                    break
+            else:
+                print(f'[Raakaadee] ⚠️  Cloudflare challenge did not clear after {max_cf_wait}s', file=sys.stderr)
+
+            # Extra wait for JS rendering after Cloudflare passes
+            page.wait_for_timeout(3000)
 
             # Get page text
             page_text = page.evaluate('() => document.body.innerText')
