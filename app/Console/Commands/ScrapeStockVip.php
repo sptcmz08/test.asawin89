@@ -222,7 +222,7 @@ class ScrapeStockVip extends Command
                     'two_top' => $twoTop ?: substr($threeTop, -2),
                     'two_bottom' => $twoBottom,
                     'details' => json_encode([
-                        'source' => 'stocks-vip.com',
+                        'source' => $r['source'] ?? 'stocks-vip.com',
                         'scraped_at' => now()->toIso8601String(),
                         'server_ip' => request()->ip() ?? 'cli',
                     ]),

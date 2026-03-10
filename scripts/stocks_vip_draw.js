@@ -1,39 +1,61 @@
 /**
- * Stocks VIP Draw Scraper
- * ดึงผลหวยหุ้น VIP จาก stocks-vip.com (Vue.js SPA)
+ * Stocks VIP Draw Scraper v2
+ * ดึงผลหวยหุ้น VIP จากเว็บเฉพาะของแต่ละหุ้น (per-site scraping)
  * 
- * Usage: node scripts/stocks_vip_draw.js
+ * แก้ปัญหา: scraper เดิมดึงจาก stocks-vip.com หน้าเดียว 
+ * แล้วใช้ keyword matching แบบคาดเดา → ผลสลับกันบ่อย
  * 
- * Output: JSON to stdout
- * {
- *   "success": true,
- *   "results": [
- *     { "slug": "nikkei-morning-vip", "lottery_name": "หุ้นนิเคอิเช้า VIP", "three_top": "119", "two_top": "19", "two_bottom": "38", "draw_date": "2026-02-12" },
- *     ...
- *   ]
- * }
+ * v2: เข้าเว็บเฉพาะของแต่ละหุ้น → ไม่มีโอกาสจับผิดตัว
+ * 
+ * Usage: node scripts/stocks_vip_draw.js [--debug]
  */
 
 import puppeteer from 'puppeteer';
 
-// Mapping: slug -> info for VIP stocks
-const VIP_STOCKS = {
-    'nikkei-morning-vip': { name: 'หุ้นนิเคอิเช้า VIP', keywords: ['นิเคอิ', 'เช้า', 'nikkei', 'morning'] },
-    'china-morning-vip': { name: 'หุ้นจีนเช้า VIP', keywords: ['จีน', 'เช้า', 'china', 'morning'] },
-    'hangseng-morning-vip': { name: 'หุ้นฮั่งเส็งเช้า VIP', keywords: ['ฮั่งเส็ง', 'เช้า', 'hang seng', 'hangseng', 'morning'] },
-    'taiwan-vip': { name: 'หุ้นไต้หวัน VIP', keywords: ['ไต้หวัน', 'taiwan'] },
-    'nikkei-afternoon-vip': { name: 'หุ้นนิเคอิบ่าย VIP', keywords: ['นิเคอิ', 'บ่าย', 'nikkei', 'afternoon'] },
-    'china-afternoon-vip': { name: 'หุ้นจีนบ่าย VIP', keywords: ['จีน', 'บ่าย', 'china', 'afternoon'] },
-    'hangseng-afternoon-vip': { name: 'หุ้นฮั่งเส็งบ่าย VIP', keywords: ['ฮั่งเส็ง', 'บ่าย', 'hang seng', 'hangseng', 'afternoon'] },
-    'singapore-vip': { name: 'หุ้นสิงคโปร์ VIP', keywords: ['สิงคโปร์', 'singapore'] },
-    'india-vip': { name: 'หุ้นอินเดีย VIP', keywords: ['อินเดีย', 'india', 'sensex'] },
-    'egypt-vip': { name: 'หุ้นอียิปต์ VIP', keywords: ['อียิปต์', 'egypt', 'egx'] },
-    'uk-vip': { name: 'หุ้นอังกฤษ VIP', keywords: ['อังกฤษ', 'uk', 'england', 'ftse'] },
-    'germany-vip': { name: 'หุ้นเยอรมัน VIP', keywords: ['เยอรมัน', 'germany', 'dax'] },
-    'russia-vip': { name: 'หุ้นรัสเซีย VIP', keywords: ['รัสเซีย', 'russia'] },
-    'dowjones-vip': { name: 'หุ้นดาวโจนส์ VIP', keywords: ['ดาวโจนส์', 'dowjones', 'dow jones', 'dow'] },
+// ============ PER-SITE CONFIG ============
+// Each site shows only ONE stock → zero ambiguity
+const INDIVIDUAL_SITES = [
+    {
+        url: 'https://nikkeivipstock.com/',
+        stock: 'nikkei',
+        slugs: { morning: 'nikkei-morning-vip', afternoon: 'nikkei-afternoon-vip' },
+        names: { morning: 'หุ้นนิเคอิเช้า VIP', afternoon: 'หุ้นนิเคอิบ่าย VIP' },
+    },
+    {
+        url: 'https://shenzhenindex.com/',
+        stock: 'china',
+        slugs: { morning: 'china-morning-vip', afternoon: 'china-afternoon-vip' },
+        names: { morning: 'หุ้นจีนเช้า VIP', afternoon: 'หุ้นจีนบ่าย VIP' },
+    },
+    {
+        url: 'https://hangseng-vip.com/',
+        stock: 'hangseng',
+        slugs: { morning: 'hangseng-morning-vip', afternoon: 'hangseng-afternoon-vip' },
+        names: { morning: 'หุ้นฮั่งเส็งเช้า VIP', afternoon: 'หุ้นฮั่งเส็งบ่าย VIP' },
+    },
+    {
+        url: 'https://dowjones-vip.com/',
+        stock: 'dowjones',
+        slugs: { closed: 'dowjones-vip' },
+        names: { closed: 'หุ้นดาวโจนส์ VIP' },
+    },
+];
+
+// Stocks that don't have individual sites → scrape from stocks-vip.com
+const STOCKS_VIP_FALLBACK = {
+    'taiwan-vip': { name: 'หุ้นไต้หวัน VIP', keywords: ['taiwan', 'taiex', 'ไต้หวัน'], session: 'closed' },
+    'singapore-vip': { name: 'หุ้นสิงคโปร์ VIP', keywords: ['singapore', 'straits', 'สิงคโปร์'], session: 'closed' },
+    'india-vip': { name: 'หุ้นอินเดีย VIP', keywords: ['india', 'sensex', 'bse', 'อินเดีย'], session: 'closed' },
+    'egypt-vip': { name: 'หุ้นอียิปต์ VIP', keywords: ['egypt', 'egx', 'อียิปต์'], session: 'closed' },
+    'uk-vip': { name: 'หุ้นอังกฤษ VIP', keywords: ['uk', 'ftse', 'london', 'อังกฤษ'], session: 'closed' },
+    'germany-vip': { name: 'หุ้นเยอรมัน VIP', keywords: ['germany', 'dax', 'frankfurt', 'เยอรมัน'], session: 'closed' },
+    'russia-vip': { name: 'หุ้นรัสเซีย VIP', keywords: ['russia', 'moex', 'moscow', 'รัสเซีย'], session: 'closed' },
 };
 
+const DEBUG = process.argv.includes('--debug');
+const today = new Date().toISOString().split('T')[0];
+
+// ============ CHROME FINDER ============
 async function findChrome() {
     const fs = await import('fs');
     const path = await import('path');
@@ -41,12 +63,11 @@ async function findChrome() {
 
     let executablePath = null;
 
-    // Method 1: Search Puppeteer cache directories
+    // Search Puppeteer cache directories
     const cacheRoots = [
         path.resolve(process.cwd(), '.puppeteer-cache'),
         path.resolve(process.cwd(), 'node_modules/puppeteer/.local-chromium'),
         path.resolve(process.env.HOME || '/root', '.cache/puppeteer'),
-        '/var/www/vhosts/after-spa.com/lotto.after-spa.com/.puppeteer-cache',
         '/root/.cache/puppeteer',
     ];
 
@@ -69,7 +90,7 @@ async function findChrome() {
         if (executablePath) break;
     }
 
-    // Method 2: Common system paths
+    // Common system paths
     if (!executablePath) {
         const systemPaths = [
             '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
@@ -85,7 +106,7 @@ async function findChrome() {
         }
     }
 
-    // Method 3: which command
+    // which command
     if (!executablePath) {
         try {
             executablePath = execSync('which google-chrome || which chromium || which chromium-browser', { timeout: 3000 }).toString().trim();
@@ -96,8 +117,225 @@ async function findChrome() {
     return executablePath;
 }
 
-async function scrapeStocksVip() {
-    console.error('[StocksVIP] Starting scrape from stocks-vip.com...');
+// ============ PARSE RESULTS FROM A SINGLE PAGE ============
+// Extract "morning top XXX bottom YY", "afternoon top XXX bottom YY", "closed top XXX bottom YY"
+function parseSessionResults(pageText) {
+    const sessions = {};
+    const lines = pageText.split('\n');
+
+    for (const line of lines) {
+        const cleaned = line.trim().replace(/\s+/g, ' ');
+        // Match: "morning top 119 bottom 38" or "closed top 821 bottom 32"
+        const m = cleaned.match(/\b(morning|afternoon|evening|close[d]?)\s+top\s+(\d{3})\s+bottom\s+(\d{2})\b/i);
+        if (m) {
+            let session = m[1].toLowerCase();
+            // Normalize: "close" → "closed", "evening" → "afternoon"  
+            if (session === 'close') session = 'closed';
+            if (session === 'evening') session = 'afternoon';
+
+            sessions[session] = {
+                three_top: m[2],
+                two_bottom: m[3],
+            };
+
+            if (DEBUG) {
+                console.error(`[StocksVIP]   → parsed: ${session} top=${m[2]} bottom=${m[3]}`);
+            }
+        }
+    }
+
+    // Also try matching from concatenated text (table rows often lose whitespace)
+    const allText = pageText.replace(/\n/g, ' ');
+    const globalMatches = allText.matchAll(/\b(morning|afternoon|evening|close[d]?)\s*top\s*(\d{3})\s*bottom\s*(\d{2})\b/gi);
+    for (const gm of globalMatches) {
+        let session = gm[1].toLowerCase();
+        if (session === 'close') session = 'closed';
+        if (session === 'evening') session = 'afternoon';
+
+        if (!sessions[session]) {
+            sessions[session] = {
+                three_top: gm[2],
+                two_bottom: gm[3],
+            };
+            if (DEBUG) {
+                console.error(`[StocksVIP]   → parsed (global): ${session} top=${gm[2]} bottom=${gm[3]}`);
+            }
+        }
+    }
+
+    return sessions;
+}
+
+// ============ SCRAPE ONE INDIVIDUAL SITE ============
+async function scrapeIndividualSite(page, siteConfig) {
+    const results = [];
+    try {
+        console.error(`[StocksVIP] 🌐 Loading ${siteConfig.url} (${siteConfig.stock})...`);
+        await page.goto(siteConfig.url, { waitUntil: 'networkidle2', timeout: 30000 });
+        // Wait for Vue.js to render
+        await new Promise(r => setTimeout(r, 4000));
+
+        const pageText = await page.evaluate(() => document.body.innerText);
+
+        if (DEBUG) {
+            console.error(`[StocksVIP] Page text (${siteConfig.stock}):\n${pageText.substring(0, 1000)}`);
+        }
+
+        const sessions = parseSessionResults(pageText);
+
+        for (const [session, data] of Object.entries(sessions)) {
+            const slug = siteConfig.slugs[session];
+            const name = siteConfig.names[session];
+            if (!slug || !name) {
+                if (DEBUG) console.error(`[StocksVIP]   ⚠️  No slug mapping for ${siteConfig.stock} session=${session}`);
+                continue;
+            }
+
+            results.push({
+                slug,
+                lottery_name: name,
+                first_prize: data.three_top,
+                three_top: data.three_top,
+                two_top: data.three_top.slice(-2),
+                two_bottom: data.two_bottom,
+                draw_date: today,
+                source: siteConfig.url,
+            });
+            console.error(`[StocksVIP] ✅ ${name}: ${data.three_top} / ${data.three_top.slice(-2)} / ${data.two_bottom} (from ${siteConfig.url})`);
+        }
+
+        if (Object.keys(sessions).length === 0) {
+            console.error(`[StocksVIP] ⚠️  ${siteConfig.stock}: ไม่พบผลจาก ${siteConfig.url} (อาจยังไม่ออกผล)`);
+        }
+
+    } catch (error) {
+        console.error(`[StocksVIP] ❌ ${siteConfig.stock}: ${error.message}`);
+    }
+
+    return results;
+}
+
+// ============ SCRAPE stocks-vip.com FOR REMAINING STOCKS ============
+async function scrapeStocksVipFallback(page, foundSlugs) {
+    const results = [];
+    const missingSlugs = Object.keys(STOCKS_VIP_FALLBACK).filter(s => !foundSlugs.has(s));
+
+    if (missingSlugs.length === 0) {
+        console.error('[StocksVIP] All stocks found from individual sites, skipping fallback');
+        return results;
+    }
+
+    console.error(`[StocksVIP] 🌐 Loading stocks-vip.com for ${missingSlugs.length} remaining stocks...`);
+
+    try {
+        await page.goto('https://stocks-vip.com/', { waitUntil: 'networkidle2', timeout: 60000 });
+        await new Promise(r => setTimeout(r, 5000));
+
+        // Get full page text
+        const pageText = await page.evaluate(() => document.body.innerText);
+
+        if (DEBUG) {
+            console.error(`[StocksVIP] stocks-vip.com full text:\n${pageText.substring(0, 3000)}`);
+        }
+
+        // Split page into sections by known URL markers / stock names
+        // Each section on stocks-vip.com is separated by the site URL of that stock
+        const sectionSplitters = [
+            { pattern: /nikkeivipstock\.com/i, stock: 'nikkei' },
+            { pattern: /vnindexvip\.com/i, stock: 'vietnam' },
+            { pattern: /shenzhenindex\.com/i, stock: 'china' },
+            { pattern: /hangseng/i, stock: 'hangseng' },
+            { pattern: /taiex|taiwan/i, stock: 'taiwan' },
+            { pattern: /ktopvipindex\.com|kospi|korea/i, stock: 'korea' },
+            { pattern: /lsxvip\.com|laos/i, stock: 'lao' },
+            { pattern: /straits\s*times|singapore/i, stock: 'singapore' },
+            { pattern: /bse\s*sensex|india/i, stock: 'india' },
+            { pattern: /egx|egypt/i, stock: 'egypt' },
+            { pattern: /ftse|uk.*vip/i, stock: 'uk' },
+            { pattern: /dax|germany|frankfurt/i, stock: 'germany' },
+            { pattern: /moex|russia|moscow/i, stock: 'russia' },
+            { pattern: /dowjones|dow\s*jones|djia/i, stock: 'dowjones' },
+        ];
+
+        // Build a map of stock→section text by finding section boundaries
+        const lines = pageText.split('\n');
+        const stockSections = {};
+        let currentStock = null;
+
+        for (const line of lines) {
+            // Check if this line starts a new stock section
+            for (const sp of sectionSplitters) {
+                if (sp.pattern.test(line)) {
+                    currentStock = sp.stock;
+                    if (!stockSections[currentStock]) stockSections[currentStock] = '';
+                    break;
+                }
+            }
+            if (currentStock) {
+                stockSections[currentStock] += line + '\n';
+            }
+        }
+
+        if (DEBUG) {
+            console.error(`[StocksVIP] Found sections for: ${Object.keys(stockSections).join(', ')}`);
+        }
+
+        // Now parse each section for its results
+        for (const [slug, config] of Object.entries(STOCKS_VIP_FALLBACK)) {
+            if (foundSlugs.has(slug)) continue;
+
+            // Find which stock section this slug belongs to by keyword match
+            let sectionText = null;
+            for (const [stockKey, text] of Object.entries(stockSections)) {
+                const hasKeyword = config.keywords.some(kw =>
+                    text.toLowerCase().includes(kw.toLowerCase()) || stockKey === kw
+                );
+                if (hasKeyword) {
+                    sectionText = text;
+                    break;
+                }
+            }
+
+            if (!sectionText) {
+                if (DEBUG) console.error(`[StocksVIP] ⚠️  No section found for ${slug}`);
+                continue;
+            }
+
+            const sessions = parseSessionResults(sectionText);
+            const session = config.session;
+
+            // For "closed" session stocks, try "closed" first, then "close"
+            const data = sessions[session] || sessions['closed'] || sessions['close'];
+            if (!data) {
+                if (DEBUG) console.error(`[StocksVIP] ⚠️  ${slug}: no ${session} data in section`);
+                continue;
+            }
+
+            results.push({
+                slug,
+                lottery_name: config.name,
+                first_prize: data.three_top,
+                three_top: data.three_top,
+                two_top: data.three_top.slice(-2),
+                two_bottom: data.two_bottom,
+                draw_date: today,
+                source: 'stocks-vip.com (fallback)',
+            });
+            foundSlugs.add(slug);
+            console.error(`[StocksVIP] ✅ ${config.name}: ${data.three_top} / ${data.three_top.slice(-2)} / ${data.two_bottom} (from stocks-vip.com)`);
+        }
+
+    } catch (error) {
+        console.error(`[StocksVIP] ❌ stocks-vip.com fallback failed: ${error.message}`);
+    }
+
+    return results;
+}
+
+// ============ MAIN ============
+async function main() {
+    console.error('[StocksVIP] Starting VIP Stock scraper v2 (per-site)...');
+    console.error(`[StocksVIP] Date: ${today}`);
 
     let browser;
     try {
@@ -124,128 +362,44 @@ async function scrapeStocksVip() {
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setViewport({ width: 1280, height: 800 });
 
-        console.error('[StocksVIP] Loading stocks-vip.com...');
-        await page.goto('https://stocks-vip.com/', {
-            waitUntil: 'networkidle2',
-            timeout: 60000,
-        });
+        const allResults = [];
+        const foundSlugs = new Set();
 
-        // Wait for Vue.js to render content
-        await new Promise(r => setTimeout(r, 5000));
-
-        // Try to extract all VIP stock results from the page
-        const rawResults = await page.evaluate(() => {
-            const items = [];
-
-            // Strategy 1: Look for tables with lottery results + capture surrounding context
-            const tables = document.querySelectorAll('table');
-            for (const table of tables) {
-                // ✅ SECURITY FIX: Capture the parent section text to identify which stock
-                // this table belongs to (instead of relying on table order)
-                let sectionContext = '';
-                let parent = table.parentElement;
-                // Walk up 3 levels to find surrounding stock identifier text
-                for (let depth = 0; depth < 3 && parent; depth++) {
-                    const siblingText = [];
-                    // Check previous siblings for stock name / URL
-                    let prevSib = parent.previousElementSibling;
-                    for (let s = 0; s < 3 && prevSib; s++) {
-                        siblingText.push(prevSib.textContent || '');
-                        prevSib = prevSib.previousElementSibling;
-                    }
-                    sectionContext += ' ' + siblingText.join(' ') + ' ' + (parent.textContent || '').substring(0, 500);
-                    parent = parent.parentElement;
-                }
-                sectionContext = sectionContext.toLowerCase().trim();
-
-                const rows = table.querySelectorAll('tr');
-                for (const row of rows) {
-                    const cells = row.querySelectorAll('td, th');
-                    const text = row.textContent || '';
-                    items.push({
-                        type: 'table-row',
-                        text: text.trim().replace(/\s+/g, ' '),
-                        cellCount: cells.length,
-                        cells: Array.from(cells).map(c => c.textContent.trim()),
-                        sectionContext: sectionContext.substring(0, 1000),
-                    });
-                }
-            }
-
-            // Strategy 2: Look for card/panel elements with results
-            const allElements = document.querySelectorAll('div, section, article');
-            for (const el of allElements) {
-                const text = el.textContent || '';
-                // Look for elements containing VIP stock names and numbers
-                if ((text.includes('VIP') || text.includes('vip')) &&
-                    (text.includes('ตัวบน') || text.includes('ตัวล่าง') || text.match(/\d{2,3}/))) {
-                    if (el.children.length < 20 && text.length < 500) {
-                        items.push({
-                            type: 'card',
-                            text: text.trim().replace(/\s+/g, ' '),
-                            tag: el.tagName,
-                            className: el.className,
-                        });
-                    }
-                }
-            }
-
-            // Strategy 3: Get entire page text for fallback parsing
-            items.push({
-                type: 'page-text',
-                text: document.body.innerText.substring(0, 10000),
-            });
-
-            return items;
-        });
-
-        console.error(`[StocksVIP] Extracted ${rawResults.length} raw items from page`);
-
-        // Debug mode: dump raw data
-        if (process.argv.includes('--debug')) {
-            console.error('[StocksVIP] === RAW DATA DUMP ===');
-            for (const item of rawResults) {
-                if (item.type === 'page-text') {
-                    console.error(`[RAW page-text] ${item.text.substring(0, 3000)}`);
-                } else {
-                    console.error(`[RAW ${item.type}] ${item.text.substring(0, 300)}`);
-                }
-            }
-            console.error('[StocksVIP] === END RAW DATA ===');
-        }
-
-        // Parse the raw results to find VIP stock data
-        const results = parseVipResults(rawResults);
-
-        // Also try individual VIP sites as fallback for missing stocks
-        const totalVipStocks = Object.keys(VIP_STOCKS).length;
-        if (results.length < totalVipStocks) {
-            console.error(`[StocksVIP] Found ${results.length}/${totalVipStocks}, trying individual sites for missing stocks...`);
-            const fallbackResults = await scrapeFallbackSites(page);
-
-            // Merge: prefer fallback if main didn't find that slug
-            const existingSlugs = new Set(results.map(r => r.slug));
-            for (const fr of fallbackResults) {
-                if (!existingSlugs.has(fr.slug)) {
-                    results.push(fr);
+        // Step 1: Scrape each individual VIP stock site
+        console.error(`[StocksVIP] === Step 1: Scraping ${INDIVIDUAL_SITES.length} individual sites ===`);
+        for (const site of INDIVIDUAL_SITES) {
+            const siteResults = await scrapeIndividualSite(page, site);
+            for (const r of siteResults) {
+                if (!foundSlugs.has(r.slug)) {
+                    allResults.push(r);
+                    foundSlugs.add(r.slug);
                 }
             }
         }
+        console.error(`[StocksVIP] After individual sites: ${allResults.length} results`);
+
+        // Step 2: Scrape stocks-vip.com for remaining stocks
+        console.error(`[StocksVIP] === Step 2: Fallback to stocks-vip.com ===`);
+        const fallbackResults = await scrapeStocksVipFallback(page, foundSlugs);
+        allResults.push(...fallbackResults);
 
         await browser.close();
 
-        console.error(`[StocksVIP] Total results: ${results.length}`);
+        console.error(`[StocksVIP] 📊 Total results: ${allResults.length}`);
+        for (const r of allResults) {
+            console.error(`   ${r.slug}: ${r.three_top}/${r.two_bottom} (${r.source})`);
+        }
 
         // Output JSON to stdout
         console.log(JSON.stringify({
             success: true,
-            results: results,
+            results: allResults,
             scraped_at: new Date().toISOString(),
         }));
 
     } catch (error) {
         if (browser) await browser.close().catch(() => { });
-        console.error(`[StocksVIP] Error: ${error.message}`);
+        console.error(`[StocksVIP] Fatal error: ${error.message}`);
         console.log(JSON.stringify({
             success: false,
             error: error.message,
@@ -255,282 +409,4 @@ async function scrapeStocksVip() {
     }
 }
 
-/**
- * Parse raw page data to extract VIP stock results.
- * 
- * Page structure (from debug dump):
- * - Table rows are concatenated: "morningtop119bottom38"
- * - Page text has sections separated by URLs like nikkeivipstock.com
- * - Each section has lines: "morning top     119     bottom  38"
- */
-function parseVipResults(rawItems) {
-    const results = [];
-    const foundSlugs = new Set();
-    const today = new Date().toISOString().split('T')[0];
-
-    // === Strategy 1: Parse from page-text (most reliable) ===
-    const pageText = rawItems.find(i => i.type === 'page-text')?.text || '';
-
-    // Define stock sections by their URL markers on the page
-    const sectionMarkers = [
-        { url: 'nikkeivipstock.com', stock: 'nikkei', sessions: { morning: 'nikkei-morning-vip', afternoon: 'nikkei-afternoon-vip' } },
-        { url: 'vnindexvip.com', stock: 'vietnam', sessions: { morning: 'vietnam-morning-vip', afternoon: 'vietnam-afternoon-vip', evening: 'vietnam-evening-vip' } },
-        { url: 'shenzhenindex.com', stock: 'china', sessions: { morning: 'china-morning-vip', evening: 'china-evening-vip' } },
-        { url: 'hangseng', stock: 'hangseng', sessions: { morning: 'hangseng-morning-vip', afternoon: 'hangseng-afternoon-vip' } },
-        { url: 'taiex', stock: 'taiwan', sessions: { closed: 'taiwan-vip' } },
-        { url: 'ktopvipindex.com', stock: 'korea', sessions: { closed: 'korea-vip' } },
-        { url: 'lsxvip.com', stock: 'lao', sessions: {} },
-        { url: 'straits times', stock: 'singapore', sessions: { closed: 'singapore-vip' } },
-        { url: 'bse sensex', stock: 'india', sessions: { closed: 'india-vip', close: 'india-vip' } },
-        { url: 'dowjones-vip', stock: 'dowjones', sessions: { closed: 'dowjones-vip', close: 'dowjones-vip' } },
-    ];
-
-    // === Strategy 2: Parse table rows using CONTEXT KEYWORDS (not positional order!) ===
-    // ✅ SECURITY FIX: Each row carries sectionContext from parent elements.
-    // We match rows to stocks by looking for stock-specific keywords in context.
-    const tableRows = rawItems.filter(i => i.type === 'table-row');
-
-    // Keywords to identify each stock from surrounding page context
-    const stockContextKeywords = {
-        'nikkei': ['nikkei', 'nikkeivipstock', '日経', 'นิเคอิ'],
-        'vietnam': ['vnindex', 'vietnam', 'เวียดนาม'],
-        'china': ['shenzhen', 'china', 'จีน', '深圳'],
-        'hangseng': ['hangseng', 'hang seng', 'ฮั่งเส็ง', '恒生'],
-        'taiwan': ['taiex', 'taiwan', 'ไต้หวัน', '台灣'],
-        'korea': ['ktop', 'korea', 'kospi', 'เกาหลี', '한국'],
-        'lao': ['lsx', 'laos', 'ลาว'],
-        'singapore': ['straits', 'singapore', 'สิงคโปร์'],
-        'india': ['sensex', 'bse', 'india', 'อินเดีย'],
-        'egypt': ['egypt', 'egx', 'อียิปต์'],
-        'uk': ['ftse', 'uk', 'london', 'อังกฤษ'],
-        'germany': ['dax', 'germany', 'เยอรมัน', 'frankfurt'],
-        'russia': ['moex', 'russia', 'รัสเซีย', 'moscow'],
-        'dowjones': ['dow jones', 'dowjones', 'djia', 'ดาวโจนส์', 'wall street'],
-    };
-
-    // Session to slug mapping (unchanged)
-    const stockSlugMap = {
-        'nikkei': { 'morning': 'nikkei-morning-vip', 'afternoon': 'nikkei-afternoon-vip' },
-        'vietnam': { 'morning': '_skip', 'afternoon': '_skip', 'evening': '_skip' },
-        'china': { 'morning': 'china-morning-vip', 'evening': 'china-afternoon-vip' },
-        'hangseng': { 'morning': 'hangseng-morning-vip', 'evening': 'hangseng-afternoon-vip' },
-        'taiwan': { 'closed': 'taiwan-vip', 'close': 'taiwan-vip' },
-        'korea': { 'closed': '_skip', 'close': '_skip' },
-        'singapore': { 'closed': 'singapore-vip', 'close': 'singapore-vip' },
-        'india': { 'closed': 'india-vip', 'close': 'india-vip' },
-        'egypt': { 'closed': 'egypt-vip', 'close': 'egypt-vip' },
-        'uk': { 'closed': 'uk-vip', 'close': 'uk-vip' },
-        'germany': { 'closed': 'germany-vip', 'close': 'germany-vip' },
-        'russia': { 'closed': 'russia-vip', 'close': 'russia-vip' },
-        'dowjones': { 'closed': 'dowjones-vip', 'close': 'dowjones-vip' },
-    };
-
-    // Parse session rows with their context
-    const sessionRows = [];
-    for (const row of tableRows) {
-        const text = row.text.replace(/\s+/g, '');
-        const match = text.match(/^(morning|afternoon|evening|closed?)\s*top\s*(\d{3}|-)\s*bottom\s*(\d{2}|-)/i);
-        if (match) {
-            const session = match[1].toLowerCase();
-            const threeTop = match[2] === '-' ? null : match[2];
-            const twoBottom = match[3] === '-' ? null : match[3];
-            if (threeTop) {
-                sessionRows.push({
-                    session,
-                    threeTop,
-                    twoBottom,
-                    context: (row.sectionContext || '').toLowerCase(),
-                });
-            }
-        }
-    }
-
-    console.error(`[StocksVIP] Found ${sessionRows.length} session rows from tables`);
-
-    // ✅ SECURITY FIX: Match rows to stocks by context keywords (NOT by position)
-    for (const row of sessionRows) {
-        let matchedStock = null;
-        let bestMatchScore = 0;
-
-        for (const [stock, keywords] of Object.entries(stockContextKeywords)) {
-            const slugMap = stockSlugMap[stock];
-            if (!slugMap) continue;
-
-            // Count how many keywords match in the row's context
-            let score = 0;
-            for (const kw of keywords) {
-                if (row.context.includes(kw.toLowerCase())) {
-                    score++;
-                }
-            }
-
-            if (score > bestMatchScore) {
-                bestMatchScore = score;
-                matchedStock = stock;
-            }
-        }
-
-        if (!matchedStock || bestMatchScore === 0) {
-            console.error(`[StocksVIP] ⚠️  No stock match for row: session=${row.session}, top=${row.threeTop}, context snippet="${row.context.substring(0, 80)}..."`);
-            continue;
-        }
-
-        const slugMap = stockSlugMap[matchedStock];
-        const slug = slugMap[row.session] || slugMap['closed'] || slugMap['close'];
-
-        if (!slug || slug === '_skip') continue;
-        if (foundSlugs.has(slug)) continue;
-        if (!VIP_STOCKS[slug]) continue;
-
-        results.push({
-            slug,
-            lottery_name: VIP_STOCKS[slug].name,
-            first_prize: row.threeTop,
-            three_top: row.threeTop,
-            two_top: row.threeTop.slice(-2),
-            two_bottom: row.twoBottom || '',
-            draw_date: today,
-        });
-        foundSlugs.add(slug);
-        console.error(`[StocksVIP] ✅ ${VIP_STOCKS[slug].name}: ${row.threeTop} / ${row.threeTop.slice(-2)} / ${row.twoBottom} (matched: ${matchedStock}, score: ${bestMatchScore})`);
-    }
-
-    // === Strategy 3: Fallback — parse page text for any remaining ===
-    // Always run this for any stocks not yet found
-    const missingCount = Object.keys(VIP_STOCKS).length - foundSlugs.size;
-    if (missingCount > 0 && pageText) {
-        console.error(`[StocksVIP] Strategy 3: ${missingCount} stocks still missing, parsing page text...`);
-        const lines = pageText.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            // Match: "morning top     119     bottom  38" or "closed top 821 bottom 32"
-            const m = line.match(/^(morning|afternoon|evening|closed?)\s+top\s+(\d{3})\s+bottom\s+(\d{2})/i);
-            if (!m) continue;
-
-            // Look backwards for stock identifier (wider context window)
-            const context = lines.slice(Math.max(0, i - 50), i).join(' ').toLowerCase();
-            for (const [slug, info] of Object.entries(VIP_STOCKS)) {
-                if (foundSlugs.has(slug)) continue;
-                const session = m[1].toLowerCase();
-                // Check slug matches session
-                if (slug.includes('morning') && session !== 'morning') continue;
-                if (slug.includes('afternoon') && session !== 'afternoon' && session !== 'evening') continue;
-                // For non-session stocks (egypt, uk, etc.), accept closed/close
-                if (!slug.includes('morning') && !slug.includes('afternoon') &&
-                    session !== 'closed' && session !== 'close') continue;
-                // Check stock keywords in context
-                const stockKw = info.keywords.filter(k => !['เช้า', 'บ่าย', 'morning', 'afternoon'].includes(k));
-                if (stockKw.some(k => context.includes(k.toLowerCase()))) {
-                    results.push({
-                        slug,
-                        lottery_name: info.name,
-                        first_prize: m[2],
-                        three_top: m[2],
-                        two_top: m[2].slice(-2),
-                        two_bottom: m[3],
-                        draw_date: today,
-                    });
-                    foundSlugs.add(slug);
-                    console.error(`[StocksVIP] ✅ (text) ${info.name}: ${m[2]} / ${m[2].slice(-2)} / ${m[3]}`);
-                }
-            }
-        }
-    }
-
-    return results;
-}
-
-/**
- * Scrape individual VIP stock sites as fallback
- */
-async function scrapeFallbackSites(page) {
-    const results = [];
-
-    const sites = [
-        { url: 'https://nikkeivipstock.com/', slugPrefix: 'nikkei', name: 'นิเคอิ' },
-        { url: 'https://hangseng-vip.com/', slugPrefix: 'hangseng', name: 'ฮั่งเส็ง' },
-        { url: 'https://dowjones-vip.com/', slugPrefix: 'dowjones', name: 'ดาวโจนส์' },
-    ];
-
-    for (const site of sites) {
-        try {
-            console.error(`[StocksVIP] Trying fallback: ${site.url}`);
-            await page.goto(site.url, { waitUntil: 'networkidle2', timeout: 20000 });
-            await new Promise(r => setTimeout(r, 3000));
-
-            const pageData = await page.evaluate(() => {
-                return {
-                    text: document.body.innerText.substring(0, 8000),
-                    tables: Array.from(document.querySelectorAll('table')).map(t => ({
-                        rows: Array.from(t.querySelectorAll('tr')).map(r =>
-                            Array.from(r.querySelectorAll('td, th')).map(c => c.textContent.trim())
-                        )
-                    }))
-                };
-            });
-
-            // Parse results from fallback site
-            const text = pageData.text;
-
-            // Look for patterns like "3 ตัวบน XXX" or table rows with numbers
-            const sections = text.split(/\n{2,}|(?=.*(?:เช้า|บ่าย|morning|afternoon))/);
-
-            for (const section of sections) {
-                const threeTopMatch = section.match(/3\s*ตัวบน\s*[:：]?\s*(\d{3})/);
-                const twoTopMatch = section.match(/2\s*ตัวบน\s*[:：]?\s*(\d{2})/);
-                const twoBottomMatch = section.match(/2\s*ตัวล่าง\s*[:：]?\s*(\d{2})/);
-
-                if (threeTopMatch) {
-                    const isMorning = section.includes('เช้า') || section.includes('morning');
-                    const isAfternoon = section.includes('บ่าย') || section.includes('afternoon');
-
-                    let slug;
-                    if (site.slugPrefix === 'dowjones') {
-                        slug = 'dowjones-vip';
-                    } else if (isMorning) {
-                        slug = `${site.slugPrefix}-morning-vip`;
-                    } else if (isAfternoon) {
-                        slug = `${site.slugPrefix}-afternoon-vip`;
-                    } else {
-                        continue;
-                    }
-
-                    const vipInfo = VIP_STOCKS[slug];
-                    if (!vipInfo) continue;
-
-                    results.push({
-                        slug,
-                        lottery_name: vipInfo.name,
-                        first_prize: threeTopMatch[1],
-                        three_top: threeTopMatch[1],
-                        two_top: twoTopMatch ? twoTopMatch[1] : threeTopMatch[1].slice(-2),
-                        two_bottom: twoBottomMatch ? twoBottomMatch[1] : '',
-                        draw_date: new Date().toISOString().split('T')[0],
-                    });
-                    console.error(`[StocksVIP] ✅ (fallback) ${vipInfo.name}: ${threeTopMatch[1]}`);
-                }
-            }
-
-            // Also parse from tables
-            for (const table of pageData.tables) {
-                for (const row of table.rows) {
-                    const rowText = row.join(' ');
-                    if (rowText.includes('3 ตัวบน') || rowText.includes('3ตัวบน')) {
-                        const numMatch = rowText.match(/(\d{3})\s*$/);
-                        if (numMatch) {
-                            console.error(`[StocksVIP] Found table data: ${rowText}`);
-                        }
-                    }
-                }
-            }
-
-        } catch (error) {
-            console.error(`[StocksVIP] Fallback ${site.url} failed: ${error.message}`);
-        }
-    }
-
-    return results;
-}
-
-// Run
-scrapeStocksVip();
+main();
