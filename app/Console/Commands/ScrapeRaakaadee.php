@@ -13,6 +13,7 @@ class ScrapeRaakaadee extends Command
 {
     protected $signature = 'lottery:scrape-raakaadee
                             {--slug= : Filter specific lottery slug}
+                            {--url= : Specific raakaadee.com URL to scrape}
                             {--calculate : Auto-settle bets}
                             {--debug : Show debug output}';
 
@@ -29,16 +30,23 @@ class ScrapeRaakaadee extends Command
     public function handle()
     {
         $slug = $this->option('slug');
+        $url = $this->option('url');
         $calculate = $this->option('calculate');
         $debug = $this->option('debug');
 
         $this->info('🌐 Starting Raakaadee.com scraper (Camoufox)...');
 
-        // Build command
+        // Build command — use .venv/bin/python for virtual environment
         $scriptPath = base_path('scripts/scrape_raakaadee.py');
-        $cmd = "python3 {$scriptPath}";
+        $pythonPath = base_path('.venv/bin/python');
+        if (!file_exists($pythonPath)) {
+            $pythonPath = 'python3'; // fallback
+            $this->warn('⚠️  .venv not found, using system python3');
+        }
+        $cmd = "{$pythonPath} {$scriptPath}";
         if ($debug) $cmd .= ' --debug';
         if ($slug) $cmd .= " --slug={$slug}";
+        if ($url) $cmd .= " --url=" . escapeshellarg($url);
 
         // Execute Python script
         $this->info("Running: {$cmd}");

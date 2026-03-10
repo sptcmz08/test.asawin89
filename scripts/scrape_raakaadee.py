@@ -3,7 +3,7 @@
 Raakaadee.com Lottery Scraper
 ดึงผลหวยทุกประเภทจาก raakaadee.com ด้วย Camoufox (bypass Cloudflare)
 
-Usage: python3 scripts/scrape_raakaadee.py [--debug] [--slug=china-morning-vip]
+Usage: python3 scripts/scrape_raakaadee.py [--debug] [--slug=china-morning-vip] [--url=...]
 Output: JSON to stdout
 """
 
@@ -84,15 +84,31 @@ LOTTERY_MAPPINGS = {
 
     # === หวยฮานอย ===
     'หวยฮานอย': 'hanoi',
+    'หวยฮานอยปกติ': 'hanoi',
     'หวยฮานอย VIP': 'hanoi-vip',
     'หวยฮานอยพิเศษ': 'hanoi-special',
     'ฮานอยพิเศษ': 'hanoi-special',
+    'หวยฮานอยเฉพาะกิจ': 'hanoi-adhoc',
+    'ฮานอยเฉพาะกิจ': 'hanoi-adhoc',
 
     # === หวยลาว ===
     'หวยลาว': 'lao',
+    'หวยลาวปกติ': 'lao',
     'หวยลาวพัฒนา': 'lao-pattana',
+    'ลาวพัฒนา': 'lao-pattana',
     'หวยลาวสตาร์': 'lao-star',
     'ลาวสตาร์': 'lao-star',
+    'หวยลาว VIP': 'lao-vip',
+    'ลาว VIP': 'lao-vip',
+    'หวยลาวสามัคคี': 'lao-samakki',
+    'ลาวสามัคคี': 'lao-samakki',
+    'หวยลาวเวียงจันทน์': 'lao-viengchan',
+    'หวยลาวประตูชัย': 'lao-pratuchai',
+    'ลาวประตูชัย': 'lao-pratuchai',
+
+    # === หวยอื่นๆ ===
+    'หวยมาเลย์': 'malay',
+    'หวยรัฐบาล': 'thai',
 }
 
 # Fuzzy matching: normalize text for comparison
@@ -202,7 +218,7 @@ def parse_results_from_page(page_text, debug=False):
     return results
 
 
-def scrape_raakaadee(debug=False, target_slug=None):
+def scrape_raakaadee(debug=False, target_slug=None, target_url=None):
     """Main scraper function"""
     print('[Raakaadee] Starting Camoufox scraper...', file=sys.stderr)
 
@@ -212,33 +228,20 @@ def scrape_raakaadee(debug=False, target_slug=None):
         print('[Raakaadee] ERROR: camoufox not installed. Run: pip install camoufox[geoip] && camoufox fetch', file=sys.stderr)
         return {'success': False, 'error': 'camoufox not installed', 'results': []}
 
+    # Default URL: main results page
+    url = target_url or 'https://www.raakaadee.com/'
+
     try:
         with Camoufox(headless=True) as browser:
             page = browser.new_page()
-            print('[Raakaadee] 🌐 Loading raakaadee.com...', file=sys.stderr)
+            print(f'[Raakaadee] 🌐 Loading {url}...', file=sys.stderr)
 
-            # Navigate to the results page
-            page.goto('https://www.raakaadee.com/', timeout=60000)
+            # Navigate directly to the target URL
+            page.goto(url, timeout=60000)
             page.wait_for_load_state('networkidle', timeout=30000)
 
             # Wait for content to render
-            page.wait_for_timeout(3000)
-
-            # Try to find and click on a "ผลหวยวันนี้" or similar link
-            try:
-                # Look for result links
-                result_links = page.query_selector_all('a')
-                for link in result_links:
-                    text = (link.text_content() or '').strip()
-                    href = (link.get_attribute('href') or '')
-                    if 'ตรวจหวย' in text or 'ผลหวย' in text or 'ออกวันนี้' in text:
-                        print(f'[Raakaadee] 📎 Found link: "{text}" → {href}', file=sys.stderr)
-                        link.click()
-                        page.wait_for_load_state('networkidle', timeout=30000)
-                        page.wait_for_timeout(3000)
-                        break
-            except Exception as e:
-                print(f'[Raakaadee] Could not navigate to results page: {e}', file=sys.stderr)
+            page.wait_for_timeout(5000)
 
             # Get page text
             page_text = page.evaluate('() => document.body.innerText')
@@ -246,7 +249,7 @@ def scrape_raakaadee(debug=False, target_slug=None):
 
             if debug:
                 print(f'[Raakaadee] URL: {page_url}', file=sys.stderr)
-                print(f'[Raakaadee] Page text preview:\n{page_text[:2000]}', file=sys.stderr)
+                print(f'[Raakaadee] Page text preview:\n{page_text[:3000]}', file=sys.stderr)
 
             # Parse results
             results = parse_results_from_page(page_text, debug=debug)
@@ -277,9 +280,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Scrape lottery results from raakaadee.com')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
     parser.add_argument('--slug', type=str, help='Filter by specific slug')
+    parser.add_argument('--url', type=str, help='Specific raakaadee.com URL to scrape')
     args = parser.parse_args()
 
-    result = scrape_raakaadee(debug=args.debug, target_slug=args.slug)
+    result = scrape_raakaadee(debug=args.debug, target_slug=args.slug, target_url=args.url)
 
     # Output JSON to stdout
     print(json.dumps(result, ensure_ascii=False))
