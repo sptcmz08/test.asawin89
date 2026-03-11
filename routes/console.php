@@ -293,12 +293,12 @@ Schedule::command('lottery:scrape-stock-vip --calculate')
 // 🌐 Raakaadee.com Scraper — PRIMARY (Camoufox)
 // ================================
 // ดึง 36 หวยจาก raakaadee.com — ใช้เป็นตัวหลัก
-// รันทุก 20 นาที ช่วง 09:00-04:30 (~58 รอบ/วัน)
+// รันทุก 15 นาที ช่วง 09:00-04:30 (~78 รอบ/วัน)
 // withoutOverlapping ป้องกันรันซ้อนกัน (Camoufox ใช้เวลา ~3 นาที)
 
 // ช่วงกลางวัน-ดึก: 09:00 - 23:59
 Schedule::command('lottery:scrape-raakaadee --calculate')
-    ->everyTwentyMinutes()
+    ->everyFifteenMinutes()
     ->between('09:00', '23:59')
     ->timezone('Asia/Bangkok')
     ->withoutOverlapping(10)
@@ -306,7 +306,7 @@ Schedule::command('lottery:scrape-raakaadee --calculate')
 
 // ช่วงหลังเที่ยงคืน: 00:00 - 04:30 (ดาวโจนส์ + catchup)
 Schedule::command('lottery:scrape-raakaadee --calculate')
-    ->everyTwentyMinutes()
+    ->everyFifteenMinutes()
     ->between('00:00', '04:30')
     ->timezone('Asia/Bangkok')
     ->withoutOverlapping(10)
