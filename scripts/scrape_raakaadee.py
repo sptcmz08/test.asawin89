@@ -106,6 +106,23 @@ LOTTERY_MAPPINGS = {
     'หวยมาเลย์': 'malay',
 }
 
+# Thai month abbreviations/full → month number
+THAI_MONTHS = {
+    'ม.ค.': 1, 'มกราคม': 1,
+    'ก.พ.': 2, 'กุมภาพันธ์': 2,
+    'มี.ค.': 3, 'มีนาคม': 3,
+    'เม.ย.': 4, 'เมษายน': 4,
+    'พ.ค.': 5, 'พฤษภาคม': 5,
+    'มิ.ย.': 6, 'มิถุนายน': 6,
+    'ก.ค.': 7, 'กรกฎาคม': 7,
+    'ส.ค.': 8, 'สิงหาคม': 8,
+    'ก.ย.': 9, 'กันยายน': 9,
+    'ต.ค.': 10, 'ตุลาคม': 10,
+    'พ.ย.': 11, 'พฤศจิกายน': 11,
+    'ธ.ค.': 12, 'ธันวาคม': 12,
+}
+
+
 
 def match_slug(text):
     """Match text against known lottery names — longest match first"""
@@ -114,6 +131,34 @@ def match_slug(text):
         if key in text_clean:
             return LOTTERY_MAPPINGS[key], key
     return None, None
+
+
+def parse_thai_date(text):
+    """
+    Parse Thai date from ตรวจผล line, e.g.:
+      "ตรวจผล หวยฮานอยปกติ ออก จ. 10 มี.ค. 69 เวลา 18:30 น."
+      "ตรวจผล หวยฮานอยปกติ ออก อ. 10 มีนาคม 2569 เวลา 18:30 น."
+    Returns 'YYYY-MM-DD' string or None
+    """
+    # Match: day (1-2 digits) + Thai month + year (2 or 4 digits)
+    for month_key, month_num in sorted(THAI_MONTHS.items(), key=lambda x: len(x[0]), reverse=True):
+        pattern = rf'(\d{{1,2}})\s+{re.escape(month_key)}\s+(\d{{2,4}})'
+        m = re.search(pattern, text)
+        if m:
+            day = int(m.group(1))
+            year_be = int(m.group(2))
+            # Convert Buddhist Era to AD
+            if year_be < 100:
+                year_ad = year_be + 2500 - 543  # 69 → 2026
+            elif year_be > 2500:
+                year_ad = year_be - 543          # 2569 → 2026
+            else:
+                year_ad = year_be
+            try:
+                return f'{year_ad:04d}-{month_num:02d}-{day:02d}'
+            except:
+                return None
+    return None
 
 
 def parse_page_results(lines, found_slugs, today, debug=False):
@@ -132,6 +177,13 @@ def parse_page_results(lines, found_slugs, today, debug=False):
             if debug and not slug:
                 short = line_stripped[:60]
                 print(f'[Raakaadee]   ⚠️ No match: "{short}"', file=sys.stderr)
+            continue
+
+        # === Date validation: skip stale results ===
+        draw_date = parse_thai_date(line_stripped)
+        if draw_date and draw_date != today:
+            if debug:
+                print(f'[Raakaadee]   ⏭️ {matched_name}: ผลเก่า ({draw_date} ≠ {today}) → ข้าม', file=sys.stderr)
             continue
 
         # Look ahead for "3 ตัวบน" and "2 ตัวล่าง"

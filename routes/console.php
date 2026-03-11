@@ -173,17 +173,19 @@ Schedule::command('lottery:auto-scrape --all --calculate')
 // ================================
 // หวยฮานอยปกติ - XSMB API (ทุกวัน ~18:15)
 // ================================
-// ดึงจาก Xổ Số Miền Bắc API (ไม่ใช้ ManyCai เพราะ YNHN ไม่ตรง)
-Schedule::command('lottery:scrape-hanoi-normal --calculate')
-    ->everyMinute()
-    ->between('18:15', '19:00')
-    ->timezone('Asia/Bangkok')
-    ->description('Hanoi Normal XSMB scrape');
-
-Schedule::command('lottery:scrape-hanoi-normal --calculate')
-    ->dailyAt('19:30')
-    ->timezone('Asia/Bangkok')
-    ->description('Hanoi Normal XSMB catchup');
+// ⚠️ DISABLED: ใช้ Raakaadee ดึงฮานอยปกติแทน (XSMB ส่งผลทีละส่วน → settle ด้วยผลผิดได้)
+// เก็บ command ไว้ใช้ manual ถ้าจำเป็น:
+//   php artisan lottery:scrape-hanoi-normal --calculate
+// Schedule::command('lottery:scrape-hanoi-normal --calculate')
+//     ->everyMinute()
+//     ->between('18:15', '19:00')
+//     ->timezone('Asia/Bangkok')
+//     ->description('Hanoi Normal XSMB scrape');
+//
+// Schedule::command('lottery:scrape-hanoi-normal --calculate')
+//     ->dailyAt('19:30')
+//     ->timezone('Asia/Bangkok')
+//     ->description('Hanoi Normal XSMB catchup');
 
 // ================================
 // หวยฮานอยกาชาด - xosoredcross.com API (ทุกวัน 16:30)
