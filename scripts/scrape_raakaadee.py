@@ -186,6 +186,21 @@ def parse_page_results(lines, found_slugs, today, debug=False):
                 print(f'[Raakaadee]   ⏭️ {matched_name}: ผลเก่า ({draw_date} ≠ {today}) → ข้าม', file=sys.stderr)
             continue
 
+        # === Time validation: skip wrong draw rounds ===
+        # ลาวพัฒนามีรอบเที่ยง+ค่ำ → ต้องการแค่ 20:30
+        REQUIRED_DRAW_TIMES = {
+            'lao': 20,  # ลาวพัฒนา: เอาแค่รอบ 20:30 (ค่ำ)
+        }
+        if slug in REQUIRED_DRAW_TIMES:
+            time_m = re.search(r'เวลา\s*(\d{1,2})[:.](\d{2})', line_stripped)
+            if time_m:
+                draw_hour = int(time_m.group(1))
+                required_hour = REQUIRED_DRAW_TIMES[slug]
+                if draw_hour < required_hour:
+                    if debug:
+                        print(f'[Raakaadee]   ⏭️ {matched_name}: รอบ {draw_hour}:00 ≠ {required_hour}:00 (ต้องการรอบค่ำ) → ข้าม', file=sys.stderr)
+                    continue
+
         # Look ahead for "3 ตัวบน" and "2 ตัวล่าง"
         three_top = None
         two_bottom = None
