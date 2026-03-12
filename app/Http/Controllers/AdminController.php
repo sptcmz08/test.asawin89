@@ -1269,6 +1269,29 @@ class AdminController extends Controller
             if (in_array($bet->status, ['won', 'paid']) && $bet->win_amount > 0) {
                 $user = $bet->user;
                 $originalWinAmount = $bet->win_amount;
+
+                // === SAFETY CHECK: ตรวจสอบว่ามี win_payout transaction จริงไหม ===
+                $payoutExists = Transaction::where('user_id', $user->id)
+                    ->where('type', 'win_payout')
+                    ->where('amount', $originalWinAmount)
+                    ->where('created_at', '>=', $bet->created_at)
+                    ->exists();
+
+                if (!$payoutExists) {
+                    // ไม่เคยจ่ายรางวัลจริง → ข้าม clawback
+                    \Log::warning("Clawback SKIPPED (no payout found): User #{$user->id} ({$user->username}) " .
+                        "Bet #{$bet->id} เลข {$bet->number} prize ฿" . number_format($originalWinAmount, 2) .
+                        " — ไม่พบ win_payout transaction → ข้ามการหักเงิน");
+
+                    $stats['reset_count']++;
+                    // Reset bet status to pending
+                    $bet->status = 'pending';
+                    $bet->win_amount = 0;
+                    $bet->payout_amount = 0;
+                    $bet->save();
+                    continue;
+                }
+
                 $refundAmount = $originalWinAmount;
 
                 // Safeguard: Don't let credit go negative — only deduct what user actually has
