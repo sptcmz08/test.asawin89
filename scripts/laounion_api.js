@@ -83,7 +83,7 @@ async function scrapeLaoSamakkiApi() {
             first_prize: results.digit5,
             three_top: results.digit3,
             two_top: results.digit2_top,
-            two_bottom: results.digit2_special,  // 2ตัวพิเศษ (ล่าง)
+            two_bottom: results.digit2_bottom || results.digit2_special || '',  // 2ตัวล่าง (digit2_special คือเลขคนละตัว!)
             draw_date: data.lotto_date,
         };
 

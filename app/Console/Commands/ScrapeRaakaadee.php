@@ -125,7 +125,31 @@ class ScrapeRaakaadee extends Command
                 ->first();
 
             if ($existing) {
-                $this->comment("⏭️  {$lotteryName}: มีผลอยู่แล้ว ({$existing->three_top}/{$existing->two_bottom})");
+                // === SAFETY NET: Raakaadee เป็น primary → แก้ผลที่ผิดจาก scraper อื่น ===
+                $needsUpdate = false;
+                $updateFields = [];
+
+                if ($twoBottom && $existing->two_bottom !== $twoBottom) {
+                    $updateFields['two_bottom'] = $twoBottom;
+                    $this->warn("   ⚠️ FIX: two_bottom {$existing->two_bottom} → {$twoBottom}");
+                    $needsUpdate = true;
+                }
+                if ($threeTop && $existing->three_top !== $threeTop) {
+                    $updateFields['three_top'] = $threeTop;
+                    $updateFields['first_prize'] = $threeTop;
+                    $updateFields['two_top'] = substr($threeTop, -2);
+                    $this->warn("   ⚠️ FIX: three_top {$existing->three_top} → {$threeTop}");
+                    $needsUpdate = true;
+                }
+
+                if ($needsUpdate) {
+                    $existing->update($updateFields);
+                    $this->info("   ✅ อัพเดตผลจาก Raakaadee (PRIMARY)");
+                    ScraperLog::log($slug, $lotteryName, 'raakaadee.com', 'updated',
+                        "Fixed: " . json_encode($updateFields), $existing->toArray(), $drawDate);
+                } else {
+                    $this->comment("⏭️  {$lotteryName}: มีผลอยู่แล้ว ({$existing->three_top}/{$existing->two_bottom})");
+                }
 
                 // Still settle pending bets
                 if ($calculate) {
