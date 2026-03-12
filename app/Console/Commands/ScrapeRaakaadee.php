@@ -213,7 +213,7 @@ class ScrapeRaakaadee extends Command
         $recentWins = \App\Models\Bet::where('status', 'won')
             ->where('lottery_type_id', $lotteryTypeId)
             ->where('draw_date', '>=', now()->subDays(7)->format('Y-m-d'))
-            ->selectRaw('user_id, COUNT(*) as win_count, SUM(payout) as total_payout')
+            ->selectRaw('user_id, COUNT(*) as win_count, SUM(payout_amount) as total_payout')
             ->groupBy('user_id')
             ->having('win_count', '>=', 5)
             ->get();
