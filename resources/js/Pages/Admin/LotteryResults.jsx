@@ -1,22 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { AdminLayout } from './Dashboard';
-import { Plus, CheckCircle, Edit, Trash2, AlertTriangle, XCircle, Info, FileText, RefreshCw } from 'lucide-react';
+import { Plus, CheckCircle, Edit, Trash2, AlertTriangle, XCircle, Info, FileText } from 'lucide-react';
 import { AlertModal, useAlert } from '@/Components/AlertModal';
 
 export default function LotteryResults({ lotteryTypes, recentResults }) {
     const [loading, setLoading] = useState(false);
-    const [scraping, setScraping] = useState(false);
     const [showManualForm, setShowManualForm] = useState(false);
-    const [showScrapeForm, setShowScrapeForm] = useState(false);
     const [editingResult, setEditingResult] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
     const [showEditConfirm, setShowEditConfirm] = useState(false);
     const alert = useAlert();
-    const [scrapeForm, setScrapeForm] = useState({
-        code: 'all',
-        count: 5,
-    });
     const [manualForm, setManualForm] = useState({
         lottery_type_id: '',
         draw_date: new Date().toISOString().split('T')[0],
@@ -50,31 +44,6 @@ export default function LotteryResults({ lotteryTypes, recentResults }) {
 
 
 
-    // ดึงผลหวยย้อนหลังจาก ManyCai
-    const submitScrape = async (e) => {
-        e.preventDefault();
-        setScraping(true);
-        try {
-            const response = await fetch('/admin/lottery-results/scrape-manycai', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(scrapeForm),
-            });
-            const data = await response.json();
-            if (data.success) {
-                alert.success(`ดึงข้อมูลสำเร็จ!\n${data.output || ''}`);
-                router.reload({ only: ['recentResults'] });
-            } else {
-                alert.error(data.error || 'เกิดข้อผิดพลาด');
-            }
-        } catch (error) {
-            alert.error('เกิดข้อผิดพลาด: ' + error.message);
-        } finally {
-            setScraping(false);
-        }
-    };
 
     const submitManualResult = async (e) => {
         e.preventDefault();
@@ -224,13 +193,7 @@ export default function LotteryResults({ lotteryTypes, recentResults }) {
                 </div>
                 <div className="flex gap-3">
                     <button
-                        onClick={() => { setShowScrapeForm(!showScrapeForm); setShowManualForm(false); }}
-                        className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 hover:from-blue-400 hover:to-blue-500 transition-all"
-                    >
-                        <RefreshCw size={18} /> ดึงข้อมูลย้อนหลัง
-                    </button>
-                    <button
-                        onClick={() => { setShowManualForm(!showManualForm); setShowScrapeForm(false); }}
+                        onClick={() => setShowManualForm(!showManualForm)}
                         className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-bold rounded-xl shadow-lg shadow-yellow-500/30 hover:from-yellow-300 hover:to-yellow-400 transition-all"
                     >
                         <Plus size={20} /> บันทึกผลหวย
@@ -238,58 +201,6 @@ export default function LotteryResults({ lotteryTypes, recentResults }) {
                 </div>
             </div>
 
-            {/* Scrape Form - ดึงข้อมูลย้อนหลัง */}
-            {showScrapeForm && (
-                <div className="bg-gradient-to-r from-[#1a3a5c] to-[#0d2540] border border-blue-500/50 rounded-xl p-6 mb-6">
-                    <h3 className="text-xl font-bold text-blue-400 mb-4">🔄 ดึงข้อมูลผลหวยย้อนหลังจาก ManyCai</h3>
-                    <form onSubmit={submitScrape} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-gray-400 text-sm block mb-1">ประเภทหวย</label>
-                                <select
-                                    value={scrapeForm.code}
-                                    onChange={(e) => setScrapeForm({ ...scrapeForm, code: e.target.value })}
-                                    className="w-full bg-[#0a1628] border border-[#2a4a6c] rounded-lg px-4 py-2 text-white"
-                                >
-                                    <option value="all">ทั้งหมด</option>
-                                    <option value="BFHN">หวยฮานอยพิเศษ</option>
-                                    <option value="HNVIP">หวยฮานอย VIP</option>
-                                    <option value="YNHN">หวยฮานอย</option>
-                                    <option value="TLZC">หวยลาวพัฒนา</option>
-                                    <option value="ZCVIP">หวยลาว VIP</option>
-                                    <option value="TGFC">หวยไทย</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-gray-400 text-sm block mb-1">จำนวนงวดย้อนหลัง</label>
-                                <select
-                                    value={scrapeForm.count}
-                                    onChange={(e) => setScrapeForm({ ...scrapeForm, count: parseInt(e.target.value) })}
-                                    className="w-full bg-[#0a1628] border border-[#2a4a6c] rounded-lg px-4 py-2 text-white"
-                                >
-                                    <option value="1">1 งวด</option>
-                                    <option value="3">3 งวด</option>
-                                    <option value="5">5 งวด</option>
-                                    <option value="10">10 งวด</option>
-                                    <option value="20">20 งวด</option>
-                                </select>
-                            </div>
-                            <div className="flex items-end">
-                                <button
-                                    type="submit"
-                                    disabled={scraping}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500 disabled:opacity-50"
-                                >
-                                    {scraping ? '⏳ กำลังดึงข้อมูล...' : '🔄 ดึงข้อมูล'}
-                                </button>
-                            </div>
-                        </div>
-                        <p className="text-gray-500 text-sm">
-                            ⚡ ระบบจะดึงข้อมูลจาก ManyCai และบันทึกลงฐานข้อมูลโดยอัตโนมัติ (ข้อมูลที่มีอยู่แล้วจะถูกข้าม)
-                        </p>
-                    </form>
-                </div>
-            )}
 
             {/* Manual Entry Form */}
             {showManualForm && (() => {
