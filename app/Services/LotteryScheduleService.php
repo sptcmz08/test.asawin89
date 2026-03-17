@@ -88,6 +88,7 @@ class LotteryScheduleService
     private function getMonthlySchedule(Carbon $now, LotteryType $lottery)
     {
         $drawDays = json_decode($lottery->draw_days, true) ?? [];
+        if (!is_array($drawDays)) $drawDays = [$drawDays];
         $drawDays = array_map('intval', $drawDays);
         sort($drawDays);
 
@@ -218,6 +219,7 @@ class LotteryScheduleService
     private function getWeeklySchedule(Carbon $now, LotteryType $lottery)
     {
         $drawDays = json_decode($lottery->draw_days, true) ?? [];
+        if (!is_array($drawDays)) $drawDays = [$drawDays];
         $drawDays = array_map('intval', $drawDays);
 
         // Handle "daily" string for lao-star backward compat
