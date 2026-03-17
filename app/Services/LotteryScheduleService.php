@@ -90,7 +90,20 @@ class LotteryScheduleService
         $drawDays = json_decode($lottery->draw_days, true) ?? [];
         if (!is_array($drawDays)) $drawDays = [$drawDays];
         $drawDays = array_map('intval', $drawDays);
+        $drawDays = array_filter($drawDays, fn($d) => $d >= 1 && $d <= 31);
         sort($drawDays);
+
+        // If no valid draw days, return safe default
+        if (empty($drawDays)) {
+            return [
+                'draw_time' => $now->copy()->endOfDay(),
+                'close_time' => $now->copy()->endOfDay(),
+                'open_time' => $now->copy()->startOfDay(),
+                'status' => 'closed',
+                'desc' => '-',
+                'next_draw_date' => $now->format('Y-m-d'),
+            ];
+        }
 
         list($drawH, $drawM) = explode(':', $lottery->draw_time);
         $drawH = (int) $drawH;
@@ -121,6 +134,18 @@ class LotteryScheduleService
             }
         }
 
+        // If no candidates found, return safe default
+        if (empty($candidates)) {
+            return [
+                'draw_time' => $now->copy()->endOfDay(),
+                'close_time' => $now->copy()->endOfDay(),
+                'open_time' => $now->copy()->startOfDay(),
+                'status' => 'closed',
+                'desc' => 'วันที่ ' . implode(', ', $drawDays),
+                'next_draw_date' => $now->format('Y-m-d'),
+            ];
+        }
+
         // Find the draw this bet belongs to (first where close hasn't passed)
         // Also track previous draw for computing open_time
         $drawTime = null;
@@ -135,7 +160,7 @@ class LotteryScheduleService
         }
 
         if (!$drawTime) {
-            $drawTime = end($candidates);
+            $drawTime = end($candidates) ?: $now->copy()->endOfDay();
         }
 
         $closeTime = $drawTime->copy()->setTime($todayClose->hour, $todayClose->minute, 0);
