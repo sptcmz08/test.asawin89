@@ -92,25 +92,18 @@ Schedule::command('lottery:scrape-thai --calculate')
 // ================================
 // ออมสิน 1 ปี: ออกวันที่ 16 ทุกเดือน เวลา ~10:30
 // ออมสิน 2 ปี: ออกวันที่ 1 ทุกเดือน เวลา ~10:30
-Schedule::command('lottery:scrape-gsb 1year --calculate')
-    ->monthlyOn(16, '11:00')
-    ->timezone('Asia/Bangkok')
-    ->description('GSB 1-year lottery scrape');
+// Retry หลายรอบถึง 19:00 ป้องกัน API ช้า
+foreach (['11:00', '11:30', '12:00', '14:00', '17:00', '19:00'] as $time) {
+    Schedule::command('lottery:scrape-gsb 1year --calculate')
+        ->monthlyOn(16, $time)
+        ->timezone('Asia/Bangkok')
+        ->description("GSB 1-year scrape at {$time}");
 
-Schedule::command('lottery:scrape-gsb 1year --calculate')
-    ->monthlyOn(16, '11:30')
-    ->timezone('Asia/Bangkok')
-    ->description('GSB 1-year lottery retry');
-
-Schedule::command('lottery:scrape-gsb 2year --calculate')
-    ->monthlyOn(1, '11:00')
-    ->timezone('Asia/Bangkok')
-    ->description('GSB 2-year lottery scrape');
-
-Schedule::command('lottery:scrape-gsb 2year --calculate')
-    ->monthlyOn(1, '11:30')
-    ->timezone('Asia/Bangkok')
-    ->description('GSB 2-year lottery retry');
+    Schedule::command('lottery:scrape-gsb 2year --calculate')
+        ->monthlyOn(1, $time)
+        ->timezone('Asia/Bangkok')
+        ->description("GSB 2-year scrape at {$time}");
+}
 
 // ================================
 // Thai Stock Morning (SET Index at 12:30) - ไม่ใช้ ManyCai
