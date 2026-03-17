@@ -122,6 +122,7 @@ Route::prefix('api')->group(function () {
     Route::middleware(['auth'])->group(function () {
         Route::post('/bets', [BetController::class, 'store'])->name('api.bets.store')->middleware('throttle:30,1');
         Route::post('/deposit/verify-slip', [FinanceController::class, 'verifySlipDeposit'])->name('api.deposit.verify-slip')->middleware('throttle:5,1');
+        Route::post('/deposit/dev', [FinanceController::class, 'devDeposit'])->name('api.deposit.dev')->middleware('throttle:10,1');
         Route::post('/withdraw', [FinanceController::class, 'withdraw'])->name('api.withdraw')->middleware('throttle:5,1');
 
         // Profile APIs

@@ -184,6 +184,66 @@ class FinanceController extends Controller
     }
 
     /**
+     * Dev mode deposit — instantly credit user (no slip verification)
+     */
+    public function devDeposit(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['error' => 'กรุณาเข้าสู่ระบบก่อน'], 401);
+        }
+
+        $request->validate([
+            'amount' => 'required|numeric|min:1|max:100000',
+        ]);
+
+        $amount = floatval($request->amount);
+
+        try {
+            return DB::transaction(function () use ($user, $amount) {
+                $deposit = Deposit::create([
+                    'user_id' => $user->id,
+                    'amount' => $amount,
+                    'transaction_ref' => 'DEV-' . strtoupper(\Illuminate\Support\Str::random(12)),
+                    'slip_ref' => null,
+                    'slip_data' => null,
+                    'gateway_mode' => 'devmode',
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                ]);
+
+                // Lock user row to prevent race condition
+                $user = User::where('id', $user->id)->lockForUpdate()->first();
+                $user->increment('credit', $amount);
+                $user->refresh();
+
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'deposit',
+                    'amount' => $amount,
+                    'balance_after' => $user->credit,
+                    'description' => 'เติมเงิน (Dev Mode)',
+                ]);
+
+                \Log::info("Dev deposit: User #{$user->id}, amount: {$amount}");
+
+                return response()->json([
+                    'success' => true,
+                    'new_balance' => $user->credit,
+                    'deposit' => $deposit,
+                    'message' => 'เติมเครดิตสำเร็จ!',
+                ]);
+            });
+        } catch (\Exception $e) {
+            \Log::error("Dev deposit error for user {$user->id}: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+            ], 500);
+        }
+    }
+
+    /**
      * Show withdraw page
      */
     public function showWithdraw(Request $request)
